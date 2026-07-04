@@ -462,8 +462,8 @@
 <script>(function(){try{var t=JSON.parse(localStorage.getItem("vn.theme")||"null")||{};var b=document.body;if(t&&t.dark)b.classList.add("dark");if(t&&t.accent&&t.accent!=="emerald")b.classList.add("accent-"+t.accent);}catch(e){}})();</script>
 
 <!-- ===== Chẩn đoán: nếu app không chạy, hiện lý do thay vì nền trống ===== -->
-<!-- du lieu that da go cho ban web cong khai; du lieu ve tu tai khoan dam may sau khi dang nhap -->
-<!-- du lieu that da go cho ban web cong khai; du lieu ve tu tai khoan dam may sau khi dang nhap -->
+
+
 
 <!-- ===== #SHOPPING — dữ liệu "Mua sắm tiết kiệm" (script cập nhật ghi đè giữa DEALS_START/END) ===== -->
 <script>/*DEALS_START*/window.VINHA_DEALS={
@@ -922,6 +922,136 @@ function CloudAuth({user,onClose}){
   );
 }
 
+/* ====== Nhận giao dịch từ thông báo ngân hàng trên điện thoại ====== */
+const BANK_WORDS=["Vietcombank","VCB","Techcombank","TCB","BIDV","VietinBank","Agribank","MBBank","MB Bank","ACB","VPBank","TPBank","Sacombank","OCB","MSB","SHB","HDBank","VIB","SeABank","Eximbank","Cake","Timo","MoMo","ZaloPay","VNPay","VNeID"];
+function cleanNum(x){
+  let t=String(x).replace(/[^\d.,]/g,"").replace(/[.,]+$/,"");
+  const dec=t.match(/^(\d[\d.,]*)[.,](\d{2})$/); // bỏ phần thập phân ,00 nếu có nhiều nhóm phân tách
+  if(dec && /[.,]/.test(dec[1])) t=dec[1];
+  return parseInt(t.replace(/[.,]/g,""),10)||0;
+}
+function parseBankText(raw){
+  const s=String(raw||""); const work=s.replace(/[\r\n]+/g," ");
+  // Bỏ phần "số dư" để không nhầm số dư thành số tiền giao dịch
+  const balCut=work.search(/s[oố]\s*d[ưu]|số\s*dư|so\s*du|\bSDC\b|available|balance/i);
+  const head = balCut>0 ? work.slice(0,balCut) : work;
+  let dir=null, amount=0;
+  let m = head.match(/[(\[]?\s*([+\-])\s*[)\]]?\s*([\d][\d.,]*)\s*(vnd|vnđ|đ|d)\b/i) || head.match(/[(\[]?\s*([+\-])\s*[)\]]?\s*([\d][\d.,]*)/);
+  if(m){ dir = m[1]==="-" ? "expense":"income"; amount=cleanNum(m[2]); }
+  if(!amount){ const m2=head.match(/([\d][\d.,]{2,})\s*(vnd|vnđ|đ)\b/i); if(m2) amount=cleanNum(m2[1]); }
+  if(!dir){
+    if(/tr[ừu]\b|chi\b|thanh to[aá]n|r[uú]t|mua\b|payment|debit|ghi n[ợo]/i.test(s)) dir="expense";
+    else if(/nh[aậ]n|c[oộ]ng|credit|ti[eề]n v[eề]|ghi c[oó]/i.test(s)) dir="income";
+    else dir="expense";
+  }
+  let note="";
+  const mn = s.match(/t[aạ]i\s+([^.;|]+)/i) || s.match(/(?:ND|n[oộ]i\s*dung)\s*[:\-]?\s*([^.;|]+)/i);
+  if(mn) note=mn[1].trim().slice(0,50);
+  const bank=BANK_WORDS.find(b=> new RegExp("\\b"+b.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b","i").test(s));
+  if(!note) note=work.trim().slice(0,50);
+  if(bank && note.toLowerCase().indexOf(bank.toLowerCase())<0) note=bank+" · "+note;
+  return {amount, type:dir, note};
+}
+
+function PhoneSetup({user,onClose}){
+  const [token,setToken]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [err,setErr]=useState("");
+  const [copied,setCopied]=useState("");
+  useEffect(()=>{ let go=true;
+    (async()=>{ if(!SB||!user) return;
+      try{ const r=await SB.from("vinha_tokens").select("token").order("created_at",{ascending:true}).limit(1).maybeSingle();
+        if(go && r.data && r.data.token) setToken(r.data.token);
+      }catch(e){}
+    })(); return ()=>{go=false;};
+  },[]);
+  const gen=async()=>{ if(!SB||!user) return; setBusy(true); setErr("");
+    const t="vn"+Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);
+    try{ const r=await SB.from("vinha_tokens").insert({token:t,label:"Điện thoại"}); if(r.error) throw r.error; setToken(t); }
+    catch(e){ setErr("Lỗi tạo mã: "+(e.message||String(e))); }
+    setBusy(false);
+  };
+  const url=SB_URL+"/rest/v1/vinha_inbox";
+  const body='{"token":"'+(token||"<MÃ_CỦA_BẠN>")+'","raw":"{txt}","source":"{app}"}';
+  const copy=(txt,tag)=>{ try{ navigator.clipboard.writeText(txt); setCopied(tag); setTimeout(()=>setCopied(""),1200);}catch(e){} };
+  const box={background:"var(--bg2)",border:"1px solid var(--line-2)",borderRadius:10,padding:"9px 11px",fontSize:12,wordBreak:"break-all",fontFamily:"monospace",marginBottom:6,lineHeight:1.5};
+  const cbtn=t=>({marginBottom:12,fontSize:12,padding:"5px 10px",borderRadius:8,border:"1px solid var(--line-2)",background:copied===t?"var(--pri)":"var(--card)",color:copied===t?"#fff":"var(--ink)",cursor:"pointer"});
+  return (
+    <Sheet title="📲 Kết nối điện thoại" onClose={onClose}>
+      {!user
+        ? <div className="note">Hãy đăng nhập đám mây (☁️) trước để tạo mã kết nối riêng cho bạn.</div>
+        : <div>
+            <div className="note" style={{marginBottom:12}}>Điện thoại (Android + app tự động như <b>MacroDroid</b>/<b>Tasker</b>) bắt thông báo trừ tiền của ngân hàng rồi gửi vào đây. Bạn chỉ việc duyệt ở mục 📥.</div>
+            <div className="field"><label>1 · Mã kết nối (bí mật — đừng chia sẻ)</label>
+              {token
+                ? <div><div style={box}>{token}</div><button style={cbtn("tok")} onClick={()=>copy(token,"tok")}>{copied==="tok"?"✓ Đã chép":"📋 Chép mã"}</button></div>
+                : <button className="btn pri block" disabled={busy} onClick={gen}>{busy?"Đang tạo…":"Tạo mã kết nối"}</button>}
+            </div>
+            {token && <div>
+              <div className="field"><label>2 · Trong MacroDroid: Trigger “Notification Received” (chọn app ngân hàng) → Action “HTTP Request (POST)”</label></div>
+              <div className="field"><label>URL</label><div style={box}>{url}</div>
+                <button style={cbtn("url")} onClick={()=>copy(url,"url")}>{copied==="url"?"✓ Đã chép":"📋 Chép URL"}</button></div>
+              <div className="field"><label>Headers (thêm 4 dòng)</label>
+                <div style={box}>apikey: {SB_KEY.slice(0,18)}…<br/>Authorization: Bearer {SB_KEY.slice(0,12)}…<br/>Content-Type: application/json<br/>Prefer: return=minimal</div>
+                <button style={cbtn("hd")} onClick={()=>copy("apikey: "+SB_KEY+"\nAuthorization: Bearer "+SB_KEY+"\nContent-Type: application/json\nPrefer: return=minimal","hd")}>{copied==="hd"?"✓ Đã chép":"📋 Chép Headers"}</button></div>
+              <div className="field"><label>Body (JSON) — thay {"{txt}"} bằng biến “nội dung thông báo”, {"{app}"} bằng tên app</label>
+                <div style={box}>{body}</div>
+                <button style={cbtn("bd")} onClick={()=>copy(body,"bd")}>{copied==="bd"?"✓ Đã chép":"📋 Chép Body"}</button></div>
+              <div className="note">Trên iPhone không đọc được thông báo app khác — chỉ lách được qua Shortcuts đọc <b>SMS</b> ngân hàng.</div>
+            </div>}
+            {err && <div className="tiny" style={{color:"var(--danger)",marginTop:8}}>{err}</div>}
+          </div>}
+    </Sheet>
+  );
+}
+
+function InboxRow({it,db,reload}){
+  const {members,wallets,cats,addTx,memberOfWallet}=db;
+  const guess=useMemo(()=>parseBankText(it.raw),[it.id]);
+  const [type,setType]=useState(guess.type);
+  const [amount,setAmount]=useState(guess.amount);
+  const [walletId,setWalletId]=useState((wallets[0]||{}).id);
+  const [categoryId,setCategoryId]=useState(guess.type==="income"?"i_other":"c_other");
+  const [note,setNote]=useState(guess.note);
+  const [busy,setBusy]=useState(false);
+  const owner=(memberOfWallet(walletId)||{}).id;
+  const done=async()=>{ try{ if(SB) await SB.from("vinha_inbox").delete().eq("id",it.id); }catch(e){} reload(); };
+  const add=async()=>{ if(!amount||amount<=0){ alert("Số tiền không hợp lệ — sửa lại giúp mình"); return; } if(!walletId){ alert("Chọn ví"); return; }
+    setBusy(true); addTx({type,amount,date:today(),walletId,categoryId,note}); await done(); };
+  const skip=async()=>{ setBusy(true); await done(); };
+  return (
+    <div className="card" style={{marginBottom:12}}>
+      <div className="tiny muted" style={{whiteSpace:"normal",lineHeight:1.5,marginBottom:9}}>{it.source?("📱 "+it.source+" · "):""}{it.raw}</div>
+      <div className="typeseg" style={{marginBottom:9}}>
+        {[["expense","Chi tiền","out"],["income","Thu tiền","in"]].map(([k,l,cl])=>
+          <button key={k} className={type===k?("on "+cl):""} onClick={()=>{setType(k); setCategoryId(k==="income"?"i_other":"c_other");}}>{l}</button>)}
+      </div>
+      <MoneyInput value={amount} onChange={setAmount} kind={type==="income"?"in":"out"}/>
+      <div style={{height:9}}></div>
+      <WalletSelect members={members} wallets={wallets} value={walletId} onChange={setWalletId} label={type==="income"?"Vào ví":"Từ ví"}/>
+      <div className="field"><label>Danh mục</label>
+        <CatPicker cats={cats} type={type} value={categoryId} onChange={setCategoryId} owner={owner}/></div>
+      <div className="field"><label>Ghi chú</label>
+        <input className="input" value={note} onChange={e=>setNote(e.target.value)} placeholder="Ghi chú"/></div>
+      <div className="two">
+        <button className="btn" disabled={busy} onClick={skip}>Bỏ qua</button>
+        <button className="btn pri" disabled={busy} onClick={add}>➕ Thêm vào sổ</button>
+      </div>
+    </div>
+  );
+}
+
+function PhoneInbox({db,items,reload,onOpenSetup,onClose}){
+  return (
+    <Sheet title={"📥 Từ ngân hàng"+(items.length?(" ("+items.length+")"):"")} onClose={onClose}>
+      <button className="btn block" style={{marginBottom:12}} onClick={onOpenSetup}>📲 Cài đặt kết nối điện thoại</button>
+      {items.length===0
+        ? <div className="note">Chưa có giao dịch mới. Khi điện thoại đẩy thông báo trừ/cộng tiền lên, nó sẽ hiện ở đây để bạn duyệt vào sổ.</div>
+        : items.map(it=> <InboxRow key={it.id} it={it} db={db} reload={reload}/>)}
+    </Sheet>
+  );
+}
+
 function App(){
   const IMP = (typeof window!=="undefined" && window.VINHA_DATA) ? window.VINHA_DATA : null;
   const [members,setMembers]=useState(()=>store.get("vn.members",IMP?IMP.members:SEED_MEMBERS));
@@ -944,11 +1074,23 @@ function App(){
   /* trạng thái đăng nhập đám mây */
   const [sbUser,setSbUser]=useState(null);
   const [authOpen,setAuthOpen]=useState(false);
+  const [inbox,setInbox]=useState([]);
+  const [inboxOpen,setInboxOpen]=useState(false);
+  const [setupOpen,setSetupOpen]=useState(false);
   useEffect(()=>{ if(!SB) return;
     SB.auth.getUser().then(({data})=>setSbUser((data&&data.user)||null)).catch(()=>{});
     const {data:sub}=SB.auth.onAuthStateChange((_e,sess)=>{ const u=sess?sess.user:null; setSbUser(u); window.__vinhaAuthed=!!u; });
     return ()=>{ try{ sub.subscription.unsubscribe(); }catch(e){} };
   },[]);
+  // Định kỳ kéo hộp thư giao dịch ngân hàng do điện thoại đẩy lên
+  useEffect(()=>{ if(!SB||!sbUser){ setInbox([]); return; }
+    let alive=true;
+    const pull=async()=>{ try{ const r=await SB.from("vinha_inbox").select("*").eq("status","pending").order("created_at",{ascending:true}); if(alive&&!r.error) setInbox(r.data||[]); }catch(e){} };
+    pull(); const iv=setInterval(pull,25000);
+    const onVis=()=>{ if(document.visibilityState==="visible") pull(); };
+    document.addEventListener("visibilitychange",onVis); window.__vinhaPullInbox=pull;
+    return ()=>{ alive=false; clearInterval(iv); document.removeEventListener("visibilitychange",onVis); };
+  },[sbUser]);
 
   const [tab,setTab]=useState("home");
   const [ym,setYm]=useState(curYM());
@@ -1007,6 +1149,7 @@ function App(){
         <div className="toprow">
           <div className="brand"><span className="logo">👛</span><div>VíNhà<small>Tài chính gia đình</small></div></div>
           {SB && <button className="cloud-pill" style={{marginLeft:"auto"}} onClick={()=>setAuthOpen(true)} title="Đồng bộ đám mây">{sbUser?("☁️ "+(((sbUser.email||"").split("@")[0])||"Tài khoản")):"☁️ Đăng nhập"}</button>}
+          {SB && sbUser && <button className="cloud-pill" style={{marginLeft:8,position:"relative"}} onClick={()=>setInboxOpen(true)} title="Giao dịch từ ngân hàng">📥{inbox.length?(" "+inbox.length):""}</button>}
           <button className="theme-tg" aria-label="Sáng/Tối" style={{marginLeft:SB?8:"auto"}} onClick={()=>setTheme(t=>({...t,dark:!t.dark}))}>{theme.dark?"☀️":"🌙"}</button>
           <div className="month-nav" style={{marginLeft:8}}>
             <button className="mbtn" aria-label="Tháng trước" onClick={()=>setYm(addMonths(ym,-1))}>‹</button>
@@ -1043,6 +1186,8 @@ function App(){
       {txEdit!==null &&
         <TxSheet db={db} init={txEdit} onClose={()=>setTxEdit(null)}/>}
       {authOpen && <CloudAuth user={sbUser} onClose={()=>setAuthOpen(false)}/>}
+      {inboxOpen && <PhoneInbox db={db} items={inbox} reload={()=>window.__vinhaPullInbox&&window.__vinhaPullInbox()} onOpenSetup={()=>{setInboxOpen(false);setSetupOpen(true);}} onClose={()=>setInboxOpen(false)}/>}
+      {setupOpen && <PhoneSetup user={sbUser} onClose={()=>setSetupOpen(false)}/>}
     </div>
   );
 }
