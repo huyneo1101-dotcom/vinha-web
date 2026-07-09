@@ -784,7 +784,7 @@ const SYNC = (typeof window!=="undefined" && window.VINHA_SYNC) ? window.VINHA_S
    (vì cloud có thể mang vn.syncVersion CŨ hơn -> phải áp lại dữ liệu ML mới rồi đẩy ngược lên cloud). */
 function applyMoneyLoverSync(){
   if(!(SYNC && SYNC.version && store.get("vn.syncVersion")!==SYNC.version)) return false;
-  const keepTx=store.get("vn.tx",[]).filter(t=> t.type==="transfer" || t.walletId==="w_save" || t.toWalletId==="w_save");
+  const keepTx=store.get("vn.tx",[]).filter(t=> t.type==="transfer" || t.walletId==="w_save" || t.toWalletId==="w_save" || t.photo);
   store.set("vn.tx",[...(SYNC.txs||[]),...keepTx]);
   const baseW=store.get("vn.wallets",[]); const sIds=(SYNC.wallets||[]).map(w=>w.id);
   store.set("vn.wallets",[...(SYNC.wallets||[]),...baseW.filter(w=>!sIds.includes(w.id))]);
