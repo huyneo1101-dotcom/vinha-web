@@ -692,7 +692,7 @@ window.addEventListener("beforeunload",()=>{ if(SB&&window.__vinhaAuthed){ try{ 
    Path = <scope>/<file>.jpg (scope = id nhóm gia đình nếu có, không thì user_id) -> cả nhà cùng xem.
    tx.photo lưu ĐƯỜNG DẪN (chuỗi ngắn, đồng bộ nhẹ) — hoặc data URI nếu chưa đăng nhập (cục bộ). */
 async function vnScope(){ if(CLOUD._hid) return CLOUD._hid; try{ const u=await SB.auth.getUser(); return (u.data&&u.data.user)?u.data.user.id:null; }catch(e){ return null; } }
-function vnCompress(file,maxDim,q){ maxDim=maxDim||1280; q=q||0.72;
+function vnCompress(file,maxDim,q){ maxDim=maxDim||1000; q=q||0.6;
   return new Promise((resolve,reject)=>{ const img=new Image();
     img.onload=()=>{ let w=img.width,h=img.height;
       if(w>h&&w>maxDim){ h=Math.round(h*maxDim/w); w=maxDim; } else if(h>=w&&h>maxDim){ w=Math.round(w*maxDim/h); h=maxDim; }
