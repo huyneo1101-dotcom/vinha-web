@@ -224,6 +224,23 @@
   .tx-thumb{width:34px;height:34px;border-radius:8px;object-fit:cover;flex:none;border:1px solid var(--line)}
   @media(min-width:1000px){ .gal-img{padding-top:64px} .gal-info{max-width:720px;margin:0 auto;width:100%} }
 
+  /* lưới ảnh hoá đơn (như Photos) */
+  .rgrid-bg{position:fixed;inset:0;z-index:110;background:var(--bg);display:flex;flex-direction:column}
+  .rgrid-h{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0}
+  .rgrid-h h3{margin:0;font-size:16px;font-weight:800;flex:1}
+  .rgrid-x{width:34px;height:34px;border-radius:9px;background:var(--bg2);border:none;color:var(--muted);font-size:15px;cursor:pointer;flex:none}
+  .rgrid-wrap{flex:1;overflow:auto;padding:3px;-webkit-overflow-scrolling:touch}
+  .rgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
+  .rcell{position:relative;aspect-ratio:1;border:none;padding:0;background:var(--bg2);cursor:pointer;overflow:hidden;border-radius:3px}
+  .rcell img{width:100%;height:100%;object-fit:cover;display:block}
+  .rcell:active img{transform:scale(.97);transition:transform .12s}
+  .rcell-ld{width:100%;height:100%;background:var(--bg2)}
+  .rcell-amt{position:absolute;left:0;right:0;bottom:0;padding:14px 7px 5px;font-size:12px;font-weight:800;color:#fff;text-align:right;background:linear-gradient(0deg,rgba(0,0,0,.62),transparent)}
+  .rcell-amt.in{color:#8affc0}
+  .rcell-dt{position:absolute;left:6px;top:5px;font-size:10px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+  @media(min-width:640px){ .rgrid{grid-template-columns:repeat(4,1fr)} }
+  @media(min-width:1000px){ .rgrid{grid-template-columns:repeat(6,1fr);gap:4px} .rgrid-wrap{padding:8px} }
+
   /* bottom nav */
   .nav{position:fixed;bottom:0;left:0;right:0;z-index:35}
   .nav-in{max-width:480px;margin:0 auto;display:flex;background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(255,255,255,.99));
@@ -2025,7 +2042,7 @@ function Transactions({db}){
           </div>
         );
       }) : <div className="card"><Empty e="🔎" title="Không có giao dịch" sub="Thử đổi tháng, bộ lọc, hoặc thêm khoản mới (+)."/></div>}
-      {gal && <ReceiptGallery db={db} onClose={()=>setGal(false)}/>}
+      {gal && <ReceiptGrid db={db} onClose={()=>setGal(false)}/>}
     </div>
   );
 }
@@ -2041,6 +2058,45 @@ function CameraFab({onCaptured}){
       {busy?"⏳":"📷"}
       <input type="file" accept="image/*" capture="environment" onChange={pick} style={{display:"none"}}/>
     </label>
+  );
+}
+
+/* Lưới ảnh hoá đơn (như Photos): chạm 1 ảnh -> mở trình xem chi tiết ReceiptGallery */
+function ReceiptGrid({db,onClose}){
+  const {txs}=db;
+  const items=useMemo(()=> txs.filter(t=>t.photo).slice().sort((a,b)=> a.date<b.date?1:(a.date>b.date?-1:0)) ,[txs]);
+  const [urls,setUrls]=useState({});
+  const [open,setOpen]=useState(null);
+  useEffect(()=>{ let go=true; (async()=>{
+    const map={}, paths=[];
+    items.forEach(t=>{ if(t.photo.indexOf("data:")===0) map[t.photo]=t.photo; else paths.push(t.photo); });
+    if(paths.length && SB){ try{ const r=await SB.storage.from("vinha-receipts").createSignedUrls(paths,3600);
+      (r.data||[]).forEach(o=>{ if(o&&o.signedUrl&&o.path) map[o.path]=o.signedUrl; }); }catch(e){} }
+    if(go) setUrls(map);
+  })(); return ()=>{ go=false; }; },[items.length]);
+  return (
+    <div className="rgrid-bg">
+      <div className="rgrid-h"><h3>🖼 Ảnh hoá đơn ({items.length})</h3>
+        <button className="rgrid-x" onClick={onClose}>✕</button></div>
+      <div className="rgrid-wrap">
+        {items.length===0
+          ? <div style={{textAlign:"center",padding:"60px 24px",color:"var(--muted)"}}>
+              <div style={{fontSize:44}}>🖼️</div>
+              <p style={{fontWeight:700,color:"var(--ink)"}}>Chưa có ảnh hoá đơn nào</p>
+              <p style={{fontSize:13}}>Bấm nút 📷 để chụp hoá đơn khi thêm giao dịch — ảnh sẽ hiện ở đây.</p></div>
+          : <div className="rgrid">
+              {items.map(t=>{ const u=urls[t.photo]; const isIn=t.type==="income";
+                return (
+                  <button key={t.id} className="rcell" onClick={()=>setOpen(t.id)}>
+                    {u? <img src={u} alt="hoá đơn"/> : <div className="rcell-ld"/>}
+                    <span className="rcell-dt">{(t.date||"").slice(8,10)+"/"+(t.date||"").slice(5,7)}</span>
+                    <span className={"rcell-amt "+(isIn?"in":"out")}>{isIn?"+":"−"}{fmtK(t.amount)}</span>
+                  </button>
+                ); })}
+            </div>}
+      </div>
+      {open!==null && <ReceiptGallery db={db} startId={open} onClose={()=>setOpen(null)}/>}
+    </div>
   );
 }
 
