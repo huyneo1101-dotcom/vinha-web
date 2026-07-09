@@ -780,7 +780,10 @@ if(!store.get("vn.migr_invest")){
 /* nạp dữ liệu ĐỒNG BỘ từ MoneyLover (window.VINHA_SYNC) — chỉ thay phần của 3 ví ML,
    KHÔNG đụng ngân sách / mục tiêu / ví Tiết kiệm / thành viên / chuyển khoản tiết kiệm */
 const SYNC = (typeof window!=="undefined" && window.VINHA_SYNC) ? window.VINHA_SYNC : null;
-if(SYNC && SYNC.version && store.get("vn.syncVersion")!==SYNC.version){
+/* Trả về true nếu có áp dụng. Gọi 2 lần: lúc nạp trang (offline) VÀ sau khi kéo cloud về
+   (vì cloud có thể mang vn.syncVersion CŨ hơn -> phải áp lại dữ liệu ML mới rồi đẩy ngược lên cloud). */
+function applyMoneyLoverSync(){
+  if(!(SYNC && SYNC.version && store.get("vn.syncVersion")!==SYNC.version)) return false;
   const keepTx=store.get("vn.tx",[]).filter(t=> t.type==="transfer" || t.walletId==="w_save" || t.toWalletId==="w_save");
   store.set("vn.tx",[...(SYNC.txs||[]),...keepTx]);
   const baseW=store.get("vn.wallets",[]); const sIds=(SYNC.wallets||[]).map(w=>w.id);
@@ -789,7 +792,9 @@ if(SYNC && SYNC.version && store.get("vn.syncVersion")!==SYNC.version){
   store.set("vn.cats",[...baseC,...(SYNC.categories||[]).filter(c=>!cIds.has(c.id))]);
   if(SYNC.debts){ const baseD=store.get("vn.debts",[]); store.set("vn.debts",[...SYNC.debts,...baseD.filter(d=>d.kind!=="lend")]); }
   store.set("vn.syncVersion",SYNC.version);
+  return true;
 }
+applyMoneyLoverSync();
 /* sửa icon danh mục bị lỗi (MoneyLover trả về đường dẫn icon thay vì emoji) — chạy mỗi lần mở */
 (function(){ const cs=store.get("vn.cats",[]); let ch=false; const OV={"Bàn nước":"@pooltable"};
   const f=cs.map(c=>{ if(!c) return c;
@@ -3563,6 +3568,8 @@ function WalletForm({members,init,onClose,onSave}){
         try{
           const remote=await Promise.race([ (async()=>{ await CLOUD.resolveHousehold(); return await CLOUD.pull(); })(), new Promise(res=>setTimeout(()=>res(null),4500)) ]);
           if(remote && Object.keys(remote).length) CLOUD.apply(remote);
+          /* cloud có thể mang syncVersion cũ hơn file MoneyLover local -> áp lại ML mới rồi đẩy ngược lên cloud */
+          if(applyMoneyLoverSync()){ CLOUD.push().catch(e=>console.warn("push ml",e)); }
         }catch(e){ console.warn("cloud pull",e); }
       }
     }
