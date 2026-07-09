@@ -200,6 +200,29 @@
     box-shadow:0 12px 26px rgba(14,159,110,.5);line-height:1}
   .fab:active{transform:translateX(calc(-50% + 200px)) scale(.95)}
   @media(max-width:520px){ .fab{right:18px;left:auto;transform:none} .fab:active{transform:scale(.95)} }
+  .camfab{position:fixed;left:50%;transform:translateX(calc(-50% + 200px));bottom:150px;z-index:40;width:50px;height:50px;border-radius:50%;
+    background:var(--card);color:var(--primary-d);border:1px solid var(--line);font-size:22px;display:grid;place-items:center;box-shadow:var(--shadow);cursor:pointer}
+  .camfab:active{transform:translateX(calc(-50% + 200px)) scale(.95)}
+  @media(max-width:520px){ .camfab{right:18px;left:auto;transform:none} .camfab:active{transform:scale(.95)} }
+  @media(min-width:1000px){ .camfab{left:auto;right:30px;bottom:92px;transform:none} .camfab:active{transform:scale(.97)} }
+
+  /* xem lại hoá đơn dạng gallery */
+  .gal-bg{position:fixed;inset:0;z-index:120;background:#0b0f0e;display:flex;flex-direction:column;color:#fff;overflow:hidden}
+  .gal-x{position:absolute;top:14px;right:14px;z-index:3;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;border:none;font-size:17px;cursor:pointer}
+  .gal-count{position:absolute;top:22px;left:0;right:0;text-align:center;z-index:2;font-weight:700;font-size:14px;opacity:.92}
+  .gal-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:44px;height:66px;background:rgba(255,255,255,.1);color:#fff;border:none;font-size:32px;cursor:pointer;border-radius:10px}
+  .gal-prev{left:8px} .gal-next{right:8px}
+  .gal-img{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:56px 10px 0}
+  .gal-img img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+  .gal-load{opacity:.7;font-size:14px}
+  .gal-info{padding:16px 18px calc(18px + env(safe-area-inset-bottom));background:linear-gradient(0deg,rgba(0,0,0,.88),rgba(0,0,0,.55) 60%,transparent)}
+  .gal-amt{font-size:26px;font-weight:800;line-height:1}
+  .gal-meta{opacity:.92;font-size:13.5px;margin-top:4px}
+  .gal-note{opacity:.82;font-style:italic;margin-top:5px;font-size:13px}
+  .gal-bg .btn.sm{background:rgba(255,255,255,.18);color:#fff;border:none;padding:7px 12px;border-radius:9px}
+  .gal-empty{margin:auto;background:var(--card);color:var(--ink);border-radius:16px;padding:26px 22px;text-align:center;max-width:320px}
+  .tx-thumb{width:34px;height:34px;border-radius:8px;object-fit:cover;flex:none;border:1px solid var(--line)}
+  @media(min-width:1000px){ .gal-img{padding-top:64px} .gal-info{max-width:720px;margin:0 auto;width:100%} }
 
   /* bottom nav */
   .nav{position:fixed;bottom:0;left:0;right:0;z-index:35}
@@ -664,6 +687,26 @@ const CLOUD={
 const _vnSet=store.set;
 store.set=function(k,v){ _vnSet(k,v); if(k&&k.indexOf&&k.indexOf("vn.")===0) CLOUD.schedule(); };
 window.addEventListener("beforeunload",()=>{ if(SB&&window.__vinhaAuthed){ try{ CLOUD.push(); }catch(e){} } });
+
+/* ====== ẢNH HOÁ ĐƠN (Supabase Storage, bucket 'vinha-receipts') ======
+   Path = <scope>/<file>.jpg (scope = id nhóm gia đình nếu có, không thì user_id) -> cả nhà cùng xem.
+   tx.photo lưu ĐƯỜNG DẪN (chuỗi ngắn, đồng bộ nhẹ) — hoặc data URI nếu chưa đăng nhập (cục bộ). */
+async function vnScope(){ if(CLOUD._hid) return CLOUD._hid; try{ const u=await SB.auth.getUser(); return (u.data&&u.data.user)?u.data.user.id:null; }catch(e){ return null; } }
+function vnCompress(file,maxDim,q){ maxDim=maxDim||1280; q=q||0.72;
+  return new Promise((resolve,reject)=>{ const img=new Image();
+    img.onload=()=>{ let w=img.width,h=img.height;
+      if(w>h&&w>maxDim){ h=Math.round(h*maxDim/w); w=maxDim; } else if(h>=w&&h>maxDim){ w=Math.round(w*maxDim/h); h=maxDim; }
+      const c=document.createElement("canvas"); c.width=w; c.height=h; c.getContext("2d").drawImage(img,0,0,w,h);
+      c.toBlob(b=>{ URL.revokeObjectURL(img.src); b?resolve(b):reject(new Error("nén ảnh lỗi")); },"image/jpeg",q); };
+    img.onerror=()=>{ URL.revokeObjectURL(img.src); reject(new Error("không đọc được ảnh")); };
+    img.src=URL.createObjectURL(file); });
+}
+async function vnReceiptUrl(p){ if(!p) return null; if(p.indexOf("data:")===0) return p; if(!SB) return null;
+  try{ const r=await SB.storage.from("vinha-receipts").createSignedUrl(p,3600); return (r&&r.data)?r.data.signedUrl:null; }catch(e){ return null; } }
+async function vnUploadReceipt(file){ const blob=await vnCompress(file); const scope=await vnScope();
+  if(SB&&scope){ const name=scope+"/"+Date.now()+"_"+Math.random().toString(36).slice(2,8)+".jpg";
+    const up=await SB.storage.from("vinha-receipts").upload(name,blob,{contentType:"image/jpeg",upsert:false}); if(up.error) throw up.error; return name; }
+  return await new Promise(res=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.readAsDataURL(blob); }); }
 
 /* ====== Tự nạp dữ liệu import (data.js) khi có phiên bản mới — kể cả khi máy đã lưu dữ liệu cũ ====== */
 const IMPORTED = (typeof window!=="undefined" && window.VINHA_DATA) ? window.VINHA_DATA : null;
@@ -1319,8 +1362,10 @@ function App(){
         {tab==="family" && <Family db={db}/>}
       </main>
 
-      {(tab==="home"||(tab==="tx"&&txSeg==="tx")) &&
-        <button className="fab" aria-label="Thêm giao dịch" onClick={()=>setTxEdit({})}>+</button>}
+      {(tab==="home"||(tab==="tx"&&txSeg==="tx")) && <React.Fragment>
+        <CameraFab onCaptured={p=>setTxEdit({photo:p})}/>
+        <button className="fab" aria-label="Thêm giao dịch" onClick={()=>setTxEdit({})}>+</button>
+      </React.Fragment>}
 
       <nav className="nav"><div className="nav-in">
         {[["home","🏠","Tổng quan"],["analytics","📊","Phân tích"],["tx","🧾","Giao dịch"],["plan","🎯","Kế hoạch"],["family","👪","Gia đình"]].map(([k,ic,lb])=>
@@ -1902,7 +1947,7 @@ function TxRow({t,db,onClick}){
   return (
     <div className="row" onClick={onClick}>
       <span className="av" style={{background:(c.color||"#999")+"22"}}>{catIcon(c.icon||"💸")}</span>
-      <div className="grow"><div className="ti">{c.name||"Khác"}</div>
+      <div className="grow"><div className="ti">{c.name||"Khác"}{t.photo?<span style={{marginLeft:5,fontSize:12,opacity:.65}} title="Có ảnh hoá đơn">📎</span>:null}</div>
         <div className="desc">{(w&&(w.icon+" "+w.name))||""}{mem?(" · "+mem.name):""}{t.note?(" · "+t.note):""}</div></div>
       <div className={"amt "+(isIn?"in":"out")}>{isIn?"+":"−"}{fmtVND(t.amount)}</div>
     </div>
@@ -1918,6 +1963,8 @@ function Transactions({db}){
   const [amin,setAmin]=useState(0);
   const [amax,setAmax]=useState(0);
   const [showFilter,setShowFilter]=useState(false);
+  const [gal,setGal]=useState(false);
+  const nPhoto=txs.filter(t=>t.photo).length;
 
   const inFocus=t=>db.inFocus(t,focus);
   let list=txs.filter(t=>ymOf(t.date)===ym && inFocus(t));
@@ -1948,6 +1995,7 @@ function Transactions({db}){
       <div style={{display:"flex",gap:8,marginBottom:13}}>
         <input className="input" placeholder="🔍 Tìm theo ghi chú…" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1}}/>
         <button className={"btn sm "+((showFilter||cat||amin||amax)?"pri":"ghost")} style={{flex:"0 0 auto"}} onClick={()=>setShowFilter(s=>!s)}>⚙ Lọc</button>
+        <button className="btn sm ghost" style={{flex:"0 0 auto"}} onClick={()=>setGal(true)} title="Xem lại ảnh hoá đơn">🖼{nPhoto?(" "+nPhoto):""}</button>
       </div>
       {showFilter &&
         <div className="card tight" style={{marginBottom:13}}>
@@ -1977,11 +2025,72 @@ function Transactions({db}){
           </div>
         );
       }) : <div className="card"><Empty e="🔎" title="Không có giao dịch" sub="Thử đổi tháng, bộ lọc, hoặc thêm khoản mới (+)."/></div>}
+      {gal && <ReceiptGallery db={db} onClose={()=>setGal(false)}/>}
     </div>
   );
 }
 
 /* form thêm/sửa giao dịch */
+/* Nút camera nổi: chụp/chọn ảnh -> mở form thêm giao dịch với ảnh đã đính kèm */
+function CameraFab({onCaptured}){
+  const [busy,setBusy]=useState(false);
+  const pick=async(e)=>{ const f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f) return;
+    setBusy(true); try{ const p=await vnUploadReceipt(f); onCaptured(p); }catch(err){ alert("Lỗi ảnh: "+(err.message||String(err))); } setBusy(false); };
+  return (
+    <label className="camfab" aria-label="Chụp hoá đơn để thêm giao dịch" title="Chụp hoá đơn">
+      {busy?"⏳":"📷"}
+      <input type="file" accept="image/*" capture="environment" onChange={pick} style={{display:"none"}}/>
+    </label>
+  );
+}
+
+/* Xem lại hoá đơn dạng gallery: vuốt trái/phải (hoặc ‹ ›), có thông tin giao dịch */
+function ReceiptGallery({db,onClose,startId}){
+  const {txs,catById,walletById}=db;
+  const items=useMemo(()=> txs.filter(t=>t.photo).slice().sort((a,b)=> a.date<b.date?1:(a.date>b.date?-1:0)) ,[txs]);
+  const [i,setI]=useState(()=>{ if(!startId) return 0; const k=items.findIndex(t=>t.id===startId); return k<0?0:k; });
+  const [url,setUrl]=useState(""); const [ld,setLd]=useState(true);
+  const touch=useMemo(()=>({x:0}),[]);
+  const t=items[i];
+  useEffect(()=>{ let go=true; setUrl(""); setLd(true);
+    if(t&&t.photo){ vnReceiptUrl(t.photo).then(u=>{ if(go){ setUrl(u||""); setLd(false); } }); } else setLd(false);
+    return ()=>{ go=false; }; },[i,items.length]);
+  const go=d=>setI(x=>{ const n=x+d; return n<0?items.length-1:(n>=items.length?0:n); });
+  useEffect(()=>{ const h=e=>{ if(e.key==="ArrowLeft") go(-1); else if(e.key==="ArrowRight") go(1); else if(e.key==="Escape") onClose(); };
+    window.addEventListener("keydown",h); return ()=>window.removeEventListener("keydown",h); },[items.length]);
+  if(!items.length) return (
+    <div className="gal-bg" onClick={onClose} style={{background:"rgba(0,0,0,.55)"}}>
+      <div className="gal-empty" onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:42}}>🖼️</div>
+        <p style={{fontWeight:700,margin:"8px 0 4px"}}>Chưa có ảnh hoá đơn nào</p>
+        <p style={{color:"var(--muted)",fontSize:13,marginTop:0}}>Bấm nút 📷 để chụp hoá đơn khi thêm giao dịch — ảnh sẽ hiện ở đây.</p>
+        <button className="btn block" style={{marginTop:12}} onClick={onClose}>Đóng</button>
+      </div>
+    </div>
+  );
+  const c=t.categoryId?catById(t.categoryId):null; const w=walletById(t.walletId);
+  return (
+    <div className="gal-bg"
+      onTouchStart={e=>{ touch.x=e.touches[0].clientX; }}
+      onTouchEnd={e=>{ const dx=e.changedTouches[0].clientX-touch.x; if(Math.abs(dx)>50) go(dx<0?1:-1); }}>
+      <button className="gal-x" onClick={onClose}>✕</button>
+      <div className="gal-count">{i+1} / {items.length}</div>
+      {items.length>1 && <button className="gal-nav gal-prev" onClick={()=>go(-1)}>‹</button>}
+      {items.length>1 && <button className="gal-nav gal-next" onClick={()=>go(1)}>›</button>}
+      <div className="gal-img">
+        {ld? <div className="gal-load">Đang tải ảnh…</div>
+           : url? <img src={url} alt="hoá đơn"/> : <div className="gal-load">Không tải được ảnh (cần đăng nhập / mạng)</div>}
+      </div>
+      <div className="gal-info">
+        <div className="gal-amt" style={{color:t.type==="income"?"#4ade80":"#fca5a5"}}>{t.type==="income"?"+":"−"}{fmtVND(t.amount)}</div>
+        <div className="gal-meta">{c?<span>{catIcon(c.icon)} {c.name}</span>:(t.type==="transfer"?"Chuyển ví":"—")} · {w?w.name:""} · {fmtDateVN(t.date)}</div>
+        {t.note && <div className="gal-note">“{t.note}”</div>}
+        <button className="btn sm" style={{marginTop:9}} onClick={()=>{ onClose(); db.openTx(t); }}>✎ Sửa giao dịch</button>
+      </div>
+    </div>
+  );
+}
+
 function TxSheet({db,init,onClose}){
   const {members,wallets,cats,saveTx,delTx,memberOfWallet}=db;
   const editing=init&&init.id;
@@ -1992,6 +2101,13 @@ function TxSheet({db,init,onClose}){
   const [toWalletId,setToWalletId]=useState(init.toWalletId||"");
   const [date,setDate]=useState(init.date||today());
   const [note,setNote]=useState(init.note||"");
+  const [photo,setPhoto]=useState(init.photo||"");
+  const [photoUrl,setPhotoUrl]=useState(init.photo&&init.photo.indexOf("data:")===0?init.photo:"");
+  const [photoBusy,setPhotoBusy]=useState(false);
+  useEffect(()=>{ let go=true; if(photo){ vnReceiptUrl(photo).then(u=>{ if(go&&u) setPhotoUrl(u); }); } else setPhotoUrl(""); return ()=>{ go=false; }; },[photo]);
+  const pickPhoto=async(e)=>{ const f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f) return;
+    setPhotoBusy(true); try{ setPhotoUrl(URL.createObjectURL(f)); const p=await vnUploadReceipt(f); setPhoto(p); }
+    catch(err){ alert("Lỗi ảnh: "+(err.message||err)); if(!photo) setPhotoUrl(""); } setPhotoBusy(false); };
 
   // lọc danh mục theo chủ ví đang chọn (mỗi ví có bộ danh mục riêng)
   const owner=(memberOfWallet(walletId)||{}).id;
@@ -2011,6 +2127,7 @@ function TxSheet({db,init,onClose}){
     if(type==="transfer"&&(!toWalletId||toWalletId===walletId)){ alert("Chọn ví nhận khác ví nguồn"); return; }
     const t={id:editing?init.id:uid(),type,amount,date,note,walletId};
     if(type==="transfer") t.toWalletId=toWalletId; else t.categoryId=categoryId;
+    if(photo) t.photo=photo;
     saveTx(t); onClose();
   };
   const remove=()=>{ if(confirm("Xóa giao dịch này?")){ delTx(init.id); onClose(); } };
@@ -2047,6 +2164,19 @@ function TxSheet({db,init,onClose}){
 
       <div className="field"><label>Ghi chú</label>
         <input className="input" placeholder="VD: ăn trưa với khách…" value={note} onChange={e=>setNote(e.target.value)}/></div>
+
+      <div className="field"><label>Ảnh hoá đơn</label>
+        {photoUrl
+          ? <div style={{position:"relative"}}>
+              <img src={photoUrl} alt="hoá đơn" style={{width:"100%",maxHeight:230,objectFit:"cover",borderRadius:12,border:"1px solid var(--line)",display:"block"}}/>
+              {photoBusy && <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.28)",color:"#fff",borderRadius:12,fontWeight:700}}>Đang tải…</div>}
+              <button type="button" onClick={()=>{ setPhoto(""); setPhotoUrl(""); }} style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,.6)",color:"#fff",border:"none",width:30,height:30,borderRadius:8,fontSize:15,cursor:"pointer"}}>✕</button>
+            </div>
+          : <label className="btn block" style={{cursor:"pointer",textAlign:"center"}}>
+              {photoBusy?"Đang tải ảnh…":"📷 Chụp / chọn ảnh hoá đơn"}
+              <input type="file" accept="image/*" capture="environment" onChange={pickPhoto} style={{display:"none"}}/>
+            </label>}
+      </div>
 
       <button className="btn pri block" onClick={save}>{editing?"Lưu thay đổi":"Thêm giao dịch"}</button>
       {editing && <button className="btn danger block" style={{marginTop:10}} onClick={remove}>🗑 Xóa giao dịch</button>}
