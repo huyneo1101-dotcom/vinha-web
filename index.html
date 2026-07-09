@@ -473,12 +473,53 @@
 <script>(function(){try{var t=JSON.parse(localStorage.getItem("vn.theme")||"null")||{};var b=document.body;if(t&&t.dark)b.classList.add("dark");if(t&&t.accent&&t.accent!=="emerald")b.classList.add("accent-"+t.accent);}catch(e){}})();</script>
 
 <!-- ===== Chẩn đoán: nếu app không chạy, hiện lý do thay vì nền trống ===== -->
+<script>
+(function(){
+  var lastErr=null;
+  window.addEventListener("error",function(e){ lastErr=(e&&(e.message||(e.error&&e.error.message)))||"Lỗi không xác định"; });
+  function panel(title,lines){
+    document.getElementById("root").innerHTML=
+      '<div style="max-width:460px;margin:0 auto;padding:42px 22px;font-family:system-ui,Segoe UI,sans-serif;color:#102a20">'
+      +'<div style="font-size:46px;text-align:center">👛</div>'
+      +'<h2 style="text-align:center;margin:8px 0 2px">VíNhà</h2>'
+      +'<div style="background:#fff;border:1px solid #e4ece8;border-radius:16px;padding:18px;margin-top:16px;box-shadow:0 8px 24px rgba(16,40,32,.08)">'
+      +'<div style="font-weight:800;color:#0a7d56;margin-bottom:8px">'+title+'</div>'
+      +'<ul style="margin:0;padding-left:18px;line-height:1.7;color:#5f7a6f;font-size:14px">'
+      +lines.map(function(l){return "<li>"+l+"</li>";}).join("")+'</ul></div></div>';
+  }
+  window.addEventListener("load",function(){
+    setTimeout(function(){
+      var root=document.getElementById("root");
+      if(root&&root.childElementCount>0) return;
+      var miss=[];
+      if(typeof React==="undefined") miss.push("React");
+      if(typeof ReactDOM==="undefined") miss.push("ReactDOM");
+      if(typeof Babel==="undefined") miss.push("Babel");
+      if(miss.length){
+        panel("Không tải được thư viện từ Internet",[
+          "Thiếu: <b>"+miss.join(", ")+"</b>",
+          "App cần <b>Internet lần đầu</b> để tải React. Kiểm tra mạng rồi tải lại (F5).",
+          "Nếu mạng chặn CDN, báo lại để mình đóng gói bản chạy <b>offline hoàn toàn</b>."
+        ]);
+      }else{
+        panel("Đã tải thư viện nhưng app không khởi động",[
+          lastErr?("Lỗi: <b>"+lastErr+"</b>"):"Có lỗi khi chạy mã.",
+          "Mở DevTools (<b>F12</b> → <b>Console</b>) và chụp dòng báo lỗi đỏ gửi lại nhé.",
+          "Nên mở bằng <b>Chrome</b> hoặc <b>Microsoft Edge</b> bản mới."
+        ]);
+      }
+    },1200);
+  });
+})();
+</script>
 
-
+<!-- ===== Dữ liệu import từ MoneyLover (tuỳ chọn) — JS thường, đặt window.VINHA_DATA ===== -->
+<script src="data/vinha-data.js"></script>
+<script src="data/vinha-sync.js"></script>
 
 <!-- ===== #SHOPPING — dữ liệu "Mua sắm tiết kiệm" (script cập nhật ghi đè giữa DEALS_START/END) ===== -->
 <script>/*DEALS_START*/window.VINHA_DEALS={
-  updatedAt:"2026-07-03",
+  updatedAt:"2026-07-05",
   tips:[
     {ic:"🍜",cat:"Ăn uống",title:"Đi chợ cuối buổi & theo mùa",detail:"Rau/cá cuối phiên chợ rẻ 20-40%, mua đồ đúng mùa. App & ngày hội viên Bách Hoá Xanh/WinMart/Co.opmart giảm thêm; lên thực đơn tuần để khỏi mua thừa."},
     {ic:"☕",cat:"Cà phê & ăn ngoài",title:"Tự pha & mang cơm trưa",detail:"Cà phê pha ở nhà ~5-10k/ly so với 35-50k ngoài quán; mang cơm trưa để dành ~2-3tr/tháng mỗi người."},
@@ -497,10 +538,10 @@
     {ic:"🏬",name:"Trang KM siêu thị",note:"WinMart/Bách Hoá Xanh/Co.opmart có trang & app khuyến mãi riêng (mua 1 tặng 1, ưu đãi thành viên + thanh toán online).",url:"https://winmart.vn/san-pham-khuyen-mai--c14"}
   ],
   deals:[
+    {ic:"🇻🇳",title:"Tháng Khuyến mại Quốc gia 2026 – Vietnam Grand Sale",where:"Toàn quốc · online + cửa hàng · 1–31/7",note:"'The First Vietnam Grand Sale in 2026' do Bộ Công Thương triển khai suốt tháng 7: hạn mức giảm giá tối đa tới 100%, đồng loạt ở cả sàn TMĐT lẫn siêu thị/cửa hàng. Canh đợt giảm sâu của thương hiệu tham gia; đơn online gộp thêm mã sàn & hoàn tiền ShopBack/MoMo."},
     {ic:"🎤",title:"7.7 Siêu Sale Mùa Hè – TikTok Shop",where:"TikTok Shop · warm-up từ 1/7, đỉnh 7/7",note:"Voucher 222K (Megalive)/111K (live)/88K toàn sàn/55K đơn nhỏ + freeship toàn quốc, Flash Sale từ 0đ. Mã to rơi trong Megalive 7/7 lúc 0h & 20h, hết sau vài giây — follow KOC, bật thông báo, vào sớm. 7.7 trên TikTok ít cạnh tranh hơn Shopee."},
     {ic:"🛍️",title:"7.7 Sale giữa năm – Shopee & Lazada",where:"Shopee/Lazada · cao điểm 7/7",note:"Lazada flash deal giảm sâu tới 80%, Shopee giảm tới 50% mỗi ngày + cộng dồn mã thêm ~40%. Lưu mã ở Trung tâm Voucher trước 0h, canh khung giờ vàng 0h/9h/12h/20h; mua qua ShopBack/MoMo để hoàn thêm 2-10%."},
-    {ic:"🏬",title:"LOTTE Max Sale – Ưu đãi hè kéo dài",where:"Lotte Mart (54 Liễu Giai) · 17/6–14/7",note:"Giảm tới 50%, mua 1 tặng 1; 'Lễ hội thương hiệu' & giá sốc mỗi ngày. Giảm thêm 10% tại nhiều gian đối tác (Lotteria, Phúc Long, Gogi…); hóa đơn lớn tặng điểm; L-Day 9/7 nhân 5 điểm thành viên."},
-    {ic:"🛒",title:"WinMart – hơn 600 sản phẩm giá siêu rẻ",where:"WinMart/WinMart+ · đang diễn ra",note:"Giảm tới 50-61%, mua 1 tặng 1 / mua 2 tặng 1 nhiều mặt hàng: nước giải khát, kem, thực phẩm, trái cây, gia dụng, hóa mỹ phẩm. Quét app WiN nhận voucher & ưu đãi độc quyền hội viên; giờ vàng rau sạch giảm mạnh chiều tối."}
+    {ic:"🏬",title:"LOTTE Max Sale – Ưu đãi hè kéo dài",where:"Lotte Mart (54 Liễu Giai) · 17/6–14/7",note:"Giảm tới 50%, mua 1 tặng 1; 'Lễ hội thương hiệu' & giá sốc mỗi ngày. Giảm thêm 10% tại nhiều gian đối tác (Lotteria, Phúc Long, Gogi…); hóa đơn lớn tặng điểm; L-Day 9/7 nhân 5 điểm thành viên."}
   ],
   stores:[
     {id:"lottemart",ic:"🏬",name:"Lotte Mart Ba Đình",cat:"Siêu thị + bách hóa",addr:"Lotte Center, 54 Liễu Giai (B1)",note:"Thực phẩm, gia dụng, mỹ phẩm; hay khuyến mãi cuối tuần + thẻ thành viên.",promo:"LOTTE Max Sale (17/6–14/7): giảm tới 50%, mua 1 tặng 1; 3–5/7 hóa đơn ≥1tr tặng 50k điểm; L-Day 9/7 nhân 5 điểm.",url:"https://lottemart.com.vn/khuyen-mai-gian-hang/"},
@@ -606,11 +647,17 @@ const SB_URL="https://ltmlueqkajqmduoqghdf.supabase.co";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0bWx1ZXFrYWpxbWR1b3FnaGRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4NTA2NjcsImV4cCI6MjA5NzQyNjY2N30.rvwZsQiaD8a7fFLwBFk5sgSe6o9t9NqbPfVh1hJvxa0";
 const SB=(typeof supabase!=="undefined"&&supabase.createClient)?supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}}):null;
 const CLOUD={
-  _applying:false, _t:null,
+  _applying:false, _t:null, _hid:null,   /* _hid: id nhóm gia đình chung (null = sổ riêng theo tài khoản) */
   gather(){ const d={}; try{ Object.keys(localStorage).forEach(k=>{ if(k.indexOf("vn.")===0){ const v=store.get(k,null); if(v!==null) d[k]=v; } }); }catch(e){} return d; },
   apply(d){ if(!d||typeof d!=="object") return; CLOUD._applying=true; try{ Object.keys(d).forEach(k=>{ if(k.indexOf("vn.")===0) store.set(k,d[k]); }); } finally{ CLOUD._applying=false; } },
-  async pull(){ if(!SB) return null; const r=await SB.from("vinha_state").select("data").maybeSingle(); if(r.error) throw r.error; return r.data?r.data.data:null; },
-  async push(){ if(!SB) return; const u=await SB.auth.getUser(); const user=u.data&&u.data.user; if(!user) return; const r=await SB.from("vinha_state").upsert({user_id:user.id,data:CLOUD.gather(),updated_at:new Date().toISOString()}); if(r.error) throw r.error; },
+  /* xác định tài khoản có đang thuộc nhóm gia đình chung không -> đặt _hid */
+  async resolveHousehold(){ if(!SB){ CLOUD._hid=null; return null; } try{ const r=await SB.rpc("vinha_my_household"); CLOUD._hid=(r&&!r.error&&r.data)?r.data:null; }catch(e){ CLOUD._hid=null; } window.__vinhaHid=CLOUD._hid; return CLOUD._hid; },
+  async pull(){ if(!SB) return null;
+    if(CLOUD._hid){ const r=await SB.from("vinha_household").select("data").eq("id",CLOUD._hid).maybeSingle(); if(r.error) throw r.error; return r.data?r.data.data:null; }
+    const r=await SB.from("vinha_state").select("data").maybeSingle(); if(r.error) throw r.error; return r.data?r.data.data:null; },
+  async push(){ if(!SB) return; const u=await SB.auth.getUser(); const user=u.data&&u.data.user; if(!user) return;
+    if(CLOUD._hid){ const r=await SB.from("vinha_household").update({data:CLOUD.gather(),updated_at:new Date().toISOString()}).eq("id",CLOUD._hid); if(r.error) throw r.error; return; }
+    const r=await SB.from("vinha_state").upsert({user_id:user.id,data:CLOUD.gather(),updated_at:new Date().toISOString()}); if(r.error) throw r.error; },
   schedule(){ if(!SB||!window.__vinhaAuthed||CLOUD._applying) return; clearTimeout(CLOUD._t); CLOUD._t=setTimeout(()=>{ CLOUD.push().catch(e=>console.warn("cloud push",e)); },1200); }
 };
 /* mọi ghi vn.* đi qua store.set -> tự lên lịch đẩy lên cloud khi đã đăng nhập */
@@ -872,7 +919,91 @@ function CatPicker({cats,type,value,onChange,owner}){
 /* ============ APP ============ */
 function applyTheme(t){ try{ const b=document.body; b.classList.toggle("dark",!!(t&&t.dark)); ["blue","violet","rose","emerald"].forEach(a=>b.classList.toggle("accent-"+a, !!(t&&t.accent===a))); }catch(e){} }
 /* ====== Màn đăng nhập / đồng bộ đám mây ====== */
+/* Nhóm gia đình chung: nhiều tài khoản -> cùng 1 sổ (bảng vinha_household) */
+function FamilyShare({onClose}){
+  const [hid,setHid]=useState(CLOUD._hid||window.__vinhaHid||null);
+  const [members,setMembers]=useState([]);
+  const [code,setCode]=useState("");
+  const [joinCode,setJoinCode]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [msg,setMsg]=useState("");
+  const inp={width:"100%",marginBottom:9,padding:"12px 13px",borderRadius:12,border:"1px solid var(--line-2)",background:"var(--card)",color:"var(--ink)",fontSize:15,letterSpacing:1};
+  const loadMembers=async(h)=>{ try{ const r=await SB.rpc("vinha_household_members",{p_household:h}); if(!r.error&&r.data) setMembers(r.data); }catch(e){} };
+  useEffect(()=>{ (async()=>{ try{ await CLOUD.resolveHousehold(); const h=CLOUD._hid; setHid(h); if(h) loadMembers(h); }catch(e){} })(); },[]);
+  const createGroup=async()=>{
+    setBusy(true); setMsg("Đang tạo nhóm…");
+    try{
+      const r=await SB.rpc("vinha_create_household"); if(r.error) throw r.error;
+      const h=r.data; CLOUD._hid=h; window.__vinhaHid=h; setHid(h);
+      await CLOUD.push();
+      const iv=await SB.rpc("vinha_new_invite",{p_household:h}); if(!iv.error) setCode(iv.data);
+      await loadMembers(h);
+      setMsg("Đã tạo nhóm chung từ sổ hiện tại. Gửi mã dưới đây cho vợ/chồng.");
+    }catch(e){ setMsg("Lỗi: "+(e.message||String(e))); }
+    setBusy(false);
+  };
+  const newCode=async()=>{ setBusy(true); setMsg(""); try{ const iv=await SB.rpc("vinha_new_invite",{p_household:hid}); if(iv.error) throw iv.error; setCode(iv.data); }catch(e){ setMsg("Lỗi: "+(e.message||String(e))); } setBusy(false); };
+  const copyCode=()=>{ try{ navigator.clipboard.writeText(code); setMsg("Đã chép mã."); }catch(e){} };
+  const join=async()=>{
+    if(!joinCode.trim()){ setMsg("Nhập mã mời."); return; }
+    if(!confirm("Tham gia nhóm sẽ THAY dữ liệu trên máy này bằng sổ chung của gia đình. Tiếp tục?")) return;
+    setBusy(true); setMsg("Đang tham gia…");
+    try{
+      const r=await SB.rpc("vinha_join_household",{p_code:joinCode.trim()}); if(r.error) throw r.error;
+      const h=r.data; CLOUD._hid=h; window.__vinhaHid=h;
+      const remote=await CLOUD.pull();
+      if(remote && Object.keys(remote).length) CLOUD.apply(remote);
+      location.reload();
+    }catch(e){ setMsg("Mã không đúng hoặc đã hết hạn."); setBusy(false); }
+  };
+  const leave=async()=>{
+    if(!confirm("Rời nhóm? Máy này sẽ giữ một bản sao sổ hiện tại làm sổ RIÊNG của bạn.")) return;
+    setBusy(true); setMsg("");
+    try{
+      try{ await CLOUD.push(); }catch(e){}
+      await SB.rpc("vinha_leave_household",{p_household:hid});
+      CLOUD._hid=null; window.__vinhaHid=null;
+      try{ await CLOUD.push(); }catch(e){}
+      location.reload();
+    }catch(e){ setMsg("Lỗi: "+(e.message||String(e))); setBusy(false); }
+  };
+  return (
+    <div className="sheet-bg" onClick={onClose}>
+      <div className="sheet" onClick={e=>e.stopPropagation()}>
+        <div className="grab"></div>
+        <div className="sheet-h"><h3>👨‍👩‍👧 Nhóm gia đình chung</h3>
+          <button onClick={onClose} style={{marginLeft:"auto",background:"var(--bg2)",border:"none",width:32,height:32,borderRadius:10,fontSize:15,color:"var(--muted)",cursor:"pointer"}}>✕</button></div>
+        {hid ? (
+          <div>
+            <div className="note" style={{marginBottom:12}}>✅ Đang dùng <b>sổ chung</b> của gia đình. Mọi thay đổi được đồng bộ cho tất cả thành viên.</div>
+            <div style={{fontSize:12.5,fontWeight:700,color:"var(--muted)",margin:"4px 0 6px"}}>Thành viên ({members.length})</div>
+            {members.map(m=> <div key={m.user_id} className="row" style={{padding:"8px 0"}}>👤 {m.email}</div>)}
+            <div style={{height:10}}/>
+            {code
+              ? <div className="note" style={{marginBottom:10,textAlign:"center"}}>Mã mời:<div style={{fontSize:26,fontWeight:800,letterSpacing:4,margin:"6px 0",color:"var(--primary-d)"}}>{code}</div>
+                  <button className="btn block" onClick={copyCode}>📋 Chép mã</button></div>
+              : <button className="btn block" disabled={busy} onClick={newCode}>➕ Tạo mã mời cho thành viên mới</button>}
+            <div style={{height:10}}/>
+            <button className="btn danger block" disabled={busy} onClick={leave}>{busy?"Đang xử lý…":"Rời nhóm (giữ bản sao làm sổ riêng)"}</button>
+            {msg && <div className="note" style={{marginTop:10}}>{msg}</div>}
+          </div>
+        ) : (
+          <div>
+            <div className="note" style={{marginBottom:12}}>Cho hai vợ chồng <b>hai tài khoản riêng</b> nhưng <b>chung một sổ</b> thu chi. Một người tạo nhóm, người kia nhập mã để tham gia.</div>
+            <button className="btn pri block" disabled={busy} onClick={createGroup}>{busy?"Đang xử lý…":"🏠 Tạo nhóm từ sổ hiện tại của tôi"}</button>
+            <div style={{textAlign:"center",color:"var(--muted-2)",fontSize:12,margin:"12px 0"}}>— hoặc —</div>
+            <input placeholder="Nhập MÃ MỜI (6 ký tự)" value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} onKeyDown={e=>{ if(e.key==="Enter") join(); }} style={inp} maxLength={8}/>
+            <button className="btn block" disabled={busy} onClick={join}>{busy?"Đang xử lý…":"🔑 Tham gia bằng mã"}</button>
+            {msg && <div className="note" style={{marginTop:10}}>{msg}</div>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CloudAuth({user,onClose}){
+  const [famOpen,setFamOpen]=useState(false);
   const [mode,setMode]=useState("in");
   const [email,setEmail]=useState(user?(user.email||""):"");
   const [pw,setPw]=useState("");
@@ -890,6 +1021,7 @@ function CloudAuth({user,onClose}){
       if(res.error) throw res.error;
       if(!res.data.session){ setMsg("Đã tạo tài khoản. Hãy kiểm tra email để xác nhận, rồi đăng nhập lại."); setBusy(false); return; }
       window.__vinhaAuthed=true; setMsg("Đang đồng bộ dữ liệu…");
+      try{ await CLOUD.resolveHousehold(); }catch(e){}
       let remote=null; try{ remote=await CLOUD.pull(); }catch(e){}
       if(remote && Object.keys(remote).length) CLOUD.apply(remote);
       else { try{ await CLOUD.push(); }catch(e){} }
@@ -913,7 +1045,9 @@ function CloudAuth({user,onClose}){
         {user ? (
           <div>
             <div className="note" style={{marginBottom:12}}>✅ Đang đăng nhập: <b>{user.email}</b><br/>Dữ liệu tự đồng bộ lên đám mây — mở được trên điện thoại / máy khác bằng cùng tài khoản.</div>
+            <button className="btn pri block" style={{marginBottom:10}} onClick={()=>setFamOpen(true)}>👨‍👩‍👧 Nhóm gia đình chung (2 tài khoản · 1 sổ)</button>
             <button className="btn danger block" disabled={busy} onClick={logout}>{busy?"Đang xử lý…":"Đăng xuất & xoá dữ liệu khỏi máy này"}</button>
+            {famOpen && <FamilyShare onClose={()=>setFamOpen(false)}/>}
           </div>
         ) : (
           <div>
@@ -3169,13 +3303,42 @@ function WalletForm({members,init,onClose,onSave}){
       if(s&&s.data&&s.data.session){
         window.__vinhaAuthed=true;
         try{
-          const remote=await Promise.race([ CLOUD.pull(), new Promise(res=>setTimeout(()=>res(null),4000)) ]);
+          const remote=await Promise.race([ (async()=>{ await CLOUD.resolveHousehold(); return await CLOUD.pull(); })(), new Promise(res=>setTimeout(()=>res(null),4500)) ]);
           if(remote && Object.keys(remote).length) CLOUD.apply(remote);
         }catch(e){ console.warn("cloud pull",e); }
       }
     }
   }catch(e){ console.warn("cloud init",e); }
   ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+})();
+</script>
+
+<!-- pwa-update-banner: tự phát hiện bản mới (so ETag/Last-Modified index.html) -->
+<script>
+(function(){
+  if('serviceWorker' in navigator){
+    window.addEventListener('load',function(){
+      navigator.serviceWorker.register('sw.js').then(function(reg){
+        setInterval(function(){ try{ reg.update(); }catch(e){} }, 300000);
+      }).catch(function(){});
+    });
+  }
+  if(location.protocol==='file:') return;
+  var pageUrl=location.href.split('#')[0].split('?')[0], baseTag=null, shown=false;
+  function getTag(cb){ fetch(pageUrl,{method:'HEAD',cache:'no-store'}).then(function(r){ cb(r.headers.get('etag')||r.headers.get('last-modified')||null); }).catch(function(){ cb(null); }); }
+  function showBanner(){
+    if(shown||!document.body) return; shown=true;
+    var b=document.createElement('div');
+    b.textContent='🔄 Có bản VíNhà mới — chạm để cập nhật';
+    b.style.cssText='position:fixed;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top));z-index:2147483647;background:#111827;color:#fff;padding:11px 16px;border-radius:13px;text-align:center;font-family:system-ui,-apple-system,sans-serif;font-size:14px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.3);cursor:pointer;line-height:1.35';
+    b.setAttribute('role','button');
+    b.onclick=function(){ b.textContent='Đang cập nhật…'; try{ if(navigator.serviceWorker&&navigator.serviceWorker.getRegistration){ navigator.serviceWorker.getRegistration().then(function(reg){ try{ if(reg) reg.update(); }catch(e){} setTimeout(function(){ location.reload(); },500); }); return; } }catch(e){} location.reload(); };
+    document.body.appendChild(b);
+  }
+  getTag(function(t){ baseTag=t; });
+  function check(){ if(baseTag==null){ getTag(function(t){ baseTag=t; }); return; } getTag(function(t){ if(t&&t!==baseTag) showBanner(); }); }
+  setInterval(check, 180000);
+  document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') check(); });
 })();
 </script>
 </body>
