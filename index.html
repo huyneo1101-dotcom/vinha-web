@@ -212,8 +212,9 @@
   .gal-count{position:absolute;top:22px;left:0;right:0;text-align:center;z-index:2;font-weight:700;font-size:14px;opacity:.92}
   .gal-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:44px;height:66px;background:rgba(255,255,255,.1);color:#fff;border:none;font-size:32px;cursor:pointer;border-radius:10px}
   .gal-prev{left:8px} .gal-next{right:8px}
-  .gal-img{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:56px 10px 0}
-  .gal-img img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+  .gal-img{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:56px 16px 0}
+  .gal-card{width:min(92vw,64vh);aspect-ratio:1;border-radius:26px;overflow:hidden;background:#000;box-shadow:0 12px 44px rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center}
+  .gal-card img{width:100%;height:100%;object-fit:cover;display:block}
   .gal-load{opacity:.7;font-size:14px}
   .gal-info{padding:16px 18px calc(18px + env(safe-area-inset-bottom));background:linear-gradient(0deg,rgba(0,0,0,.88),rgba(0,0,0,.55) 60%,transparent)}
   .gal-amt{font-size:26px;font-weight:800;line-height:1}
@@ -229,9 +230,9 @@
   .rgrid-h{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0}
   .rgrid-h h3{margin:0;font-size:16px;font-weight:800;flex:1}
   .rgrid-x{width:34px;height:34px;border-radius:9px;background:var(--bg2);border:none;color:var(--muted);font-size:15px;cursor:pointer;flex:none}
-  .rgrid-wrap{flex:1;overflow:auto;padding:3px;-webkit-overflow-scrolling:touch}
-  .rgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
-  .rcell{position:relative;aspect-ratio:1;border:none;padding:0;background:var(--bg2);cursor:pointer;overflow:hidden;border-radius:3px}
+  .rgrid-wrap{flex:1;overflow:auto;padding:9px;-webkit-overflow-scrolling:touch}
+  .rgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+  .rcell{position:relative;aspect-ratio:1;border:none;padding:0;background:var(--bg2);cursor:pointer;overflow:hidden;border-radius:16px}
   .rcell img{width:100%;height:100%;object-fit:cover;display:block}
   .rcell:active img{transform:scale(.97);transition:transform .12s}
   .rcell-ld{width:100%;height:100%;background:var(--bg2)}
@@ -239,7 +240,21 @@
   .rcell-amt.in{color:#8affc0}
   .rcell-dt{position:absolute;left:6px;top:5px;font-size:10px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
   @media(min-width:640px){ .rgrid{grid-template-columns:repeat(4,1fr)} }
-  @media(min-width:1000px){ .rgrid{grid-template-columns:repeat(6,1fr);gap:4px} .rgrid-wrap{padding:8px} }
+  @media(min-width:1000px){ .rgrid{grid-template-columns:repeat(6,1fr);gap:10px} .rgrid-wrap{padding:12px} }
+
+  /* camera trong app (khung vuông bo tròn) */
+  .cam-bg{position:fixed;inset:0;z-index:130;background:#0a0b0c;display:flex;flex-direction:column;color:#fff}
+  .cam-top{display:flex;align-items:center;gap:10px;padding:16px}
+  .cam-title{flex:1;text-align:center;font-weight:800;font-size:15px}
+  .cam-x,.cam-flip{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;border:none;font-size:16px;cursor:pointer;flex:none}
+  .cam-frame{flex:1;display:flex;align-items:center;justify-content:center;padding:0 18px;position:relative}
+  .cam-frame video{width:min(88vw,62vh);height:min(88vw,62vh);object-fit:cover;border-radius:30px;background:#000}
+  .cam-frame video.mir{transform:scaleX(-1)}
+  .cam-load{position:absolute;color:#fff;opacity:.75;font-size:14px}
+  .cam-ctrl{display:flex;align-items:center;justify-content:center;padding:22px 0 calc(30px + env(safe-area-inset-bottom))}
+  .cam-shoot{width:74px;height:74px;border-radius:50%;background:#fff;border:none;cursor:pointer;box-shadow:0 0 0 4px #0a0b0c,0 0 0 7px rgba(255,255,255,.55)}
+  .cam-shoot:active{transform:scale(.93)}
+  .cam-fallback{margin:auto;text-align:center;padding:24px;max-width:300px;color:#fff}
 
   /* bottom nav */
   .nav{position:fixed;bottom:0;left:0;right:0;z-index:35}
@@ -2048,16 +2063,71 @@ function Transactions({db}){
 }
 
 /* form thêm/sửa giao dịch */
-/* Nút camera nổi: chụp/chọn ảnh -> mở form thêm giao dịch với ảnh đã đính kèm */
-function CameraFab({onCaptured}){
-  const [busy,setBusy]=useState(false);
-  const pick=async(e)=>{ const f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f) return;
-    setBusy(true); try{ const p=await vnUploadReceipt(f); onCaptured(p); }catch(err){ alert("Lỗi ảnh: "+(err.message||String(err))); } setBusy(false); };
+/* Camera trong app: khung vuông bo tròn, chụp -> cắt vuông giữa -> File jpeg. Không mở được thì fallback camera hệ thống. */
+function CameraCapture({onCapture,onClose}){
+  const [err,setErr]=useState("");
+  const [ready,setReady]=useState(false);
+  const [facing,setFacing]=useState("environment");
+  const h=useMemo(()=>({stream:null,video:null}),[]);
+  const attach=()=>{ if(h.video&&h.stream){ try{ h.video.srcObject=h.stream; h.video.play().catch(()=>{}); }catch(e){} } };
+  useEffect(()=>{ let go=true; setReady(false);
+    (async()=>{
+      if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ setErr("nomedia"); return; }
+      try{
+        const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing},audio:false});
+        if(!go){ s.getTracks().forEach(t=>t.stop()); return; }
+        h.stream=s; attach();
+      }catch(e){ if(go) setErr(e&&e.name==="NotAllowedError"?"denied":"fail"); }
+    })();
+    return ()=>{ go=false; if(h.stream){ h.stream.getTracks().forEach(t=>t.stop()); h.stream=null; } };
+  },[facing]);
+  const setVideo=el=>{ h.video=el; attach(); };
+  const shoot=()=>{ const v=h.video; if(!v||!v.videoWidth) return;
+    const side=Math.min(v.videoWidth,v.videoHeight), sx=(v.videoWidth-side)/2, sy=(v.videoHeight-side)/2;
+    const c=document.createElement("canvas"); c.width=side; c.height=side; const ctx=c.getContext("2d");
+    if(facing==="user"){ ctx.translate(side,0); ctx.scale(-1,1); }   // ảnh selfie đúng chiều
+    ctx.drawImage(v,sx,sy,side,side,0,0,side,side);
+    c.toBlob(b=>{ if(b) onCapture(new File([b],"cam.jpg",{type:"image/jpeg"})); },"image/jpeg",0.9);
+  };
+  if(err) return (
+    <div className="cam-bg">
+      <div className="cam-top"><button className="cam-x" onClick={onClose}>✕</button><span className="cam-title">Chụp hoá đơn</span><span style={{width:40}}/></div>
+      <div className="cam-fallback">
+        <div style={{fontSize:40,marginBottom:8}}>📷</div>
+        <p>{err==="denied"?"Chưa cấp quyền camera cho trình duyệt.":"Không mở được camera trong ứng dụng trên thiết bị này."}</p>
+        <label className="btn pri block" style={{cursor:"pointer",marginTop:12}}>Dùng camera hệ thống
+          <input type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{ const f=e.target.files&&e.target.files[0]; if(f) onCapture(f); }}/></label>
+        <button className="btn block" style={{marginTop:10,background:"rgba(255,255,255,.14)",color:"#fff",border:"none"}} onClick={onClose}>Đóng</button>
+      </div>
+    </div>
+  );
   return (
-    <label className="camfab" aria-label="Chụp hoá đơn để thêm giao dịch" title="Chụp hoá đơn">
-      {busy?"⏳":"📷"}
-      <input type="file" accept="image/*" capture="environment" onChange={pick} style={{display:"none"}}/>
-    </label>
+    <div className="cam-bg">
+      <div className="cam-top">
+        <button className="cam-x" onClick={onClose}>✕</button>
+        <span className="cam-title">Chụp hoá đơn</span>
+        <button className="cam-flip" onClick={()=>setFacing(f=>f==="environment"?"user":"environment")} aria-label="Đổi camera">🔄</button>
+      </div>
+      <div className="cam-frame">
+        <video ref={setVideo} className={facing==="user"?"mir":""} autoPlay playsInline muted onPlaying={()=>setReady(true)}/>
+        {!ready && <div className="cam-load">Đang mở camera…</div>}
+      </div>
+      <div className="cam-ctrl"><button className="cam-shoot" onClick={shoot} aria-label="Chụp"/></div>
+    </div>
+  );
+}
+
+/* Nút camera nổi -> mở camera trong app -> chụp -> upload -> mở form thêm giao dịch với ảnh sẵn */
+function CameraFab({onCaptured}){
+  const [cam,setCam]=useState(false);
+  const [busy,setBusy]=useState(false);
+  const handle=async(file)=>{ setCam(false); setBusy(true);
+    try{ const p=await vnUploadReceipt(file); onCaptured(p); }catch(err){ alert("Lỗi ảnh: "+(err.message||String(err))); } setBusy(false); };
+  return (
+    <React.Fragment>
+      <button className="camfab" onClick={()=>setCam(true)} aria-label="Chụp hoá đơn để thêm giao dịch" title="Chụp hoá đơn">{busy?"⏳":"📷"}</button>
+      {cam && <CameraCapture onCapture={handle} onClose={()=>setCam(false)}/>}
+    </React.Fragment>
   );
 }
 
@@ -2134,8 +2204,10 @@ function ReceiptGallery({db,onClose,startId}){
       {items.length>1 && <button className="gal-nav gal-prev" onClick={()=>go(-1)}>‹</button>}
       {items.length>1 && <button className="gal-nav gal-next" onClick={()=>go(1)}>›</button>}
       <div className="gal-img">
-        {ld? <div className="gal-load">Đang tải ảnh…</div>
-           : url? <img src={url} alt="hoá đơn"/> : <div className="gal-load">Không tải được ảnh (cần đăng nhập / mạng)</div>}
+        <div className="gal-card">
+          {ld? <div className="gal-load">Đang tải ảnh…</div>
+             : url? <img src={url} alt="hoá đơn"/> : <div className="gal-load" style={{textAlign:"center",padding:"0 16px"}}>Không tải được ảnh<br/>(cần đăng nhập / mạng)</div>}
+        </div>
       </div>
       <div className="gal-info">
         <div className="gal-amt" style={{color:t.type==="income"?"#4ade80":"#fca5a5"}}>{t.type==="income"?"+":"−"}{fmtVND(t.amount)}</div>
