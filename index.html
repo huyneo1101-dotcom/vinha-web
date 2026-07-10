@@ -1464,7 +1464,7 @@ function App(){
 
   const db={members:visMembers,setMembers,wallets:visWallets,setWallets,cats,txs:visTxs,budgets:visBudgets,setBudgets,goals:visGoals,setGoals,bills:visBills,setBills,debts:visDebts,setDebts,subs:visSubs,setSubs,
     ym,setYm,focus,setFocus,memberById,walletById,catById,memberOfWallet,balanceOf,memberBalance,familyTotal,inFocus,budgetSpent,
-    addTx,saveTx,delTx,openTx:setTxEdit,setTab,theme,setTheme,txSeg,setTxSeg,memberByIdAny,myMemberId,budgetNotifOn,setBudgetNotifOn};
+    addTx,saveTx,delTx,openTx:setTxEdit,setTab,theme,setTheme,txSeg,setTxSeg,memberByIdAny,myMemberId,budgetNotifOn,setBudgetNotifOn,allMembers:members};
 
   return (
     <div className="wrap">
@@ -2350,7 +2350,7 @@ function ReceiptGallery({db,onClose,startId}){
 }
 
 function TxSheet({db,init,onClose}){
-  const {members,wallets,cats,saveTx,delTx,memberOfWallet,myMemberId}=db;
+  const {members,wallets,cats,saveTx,delTx,memberOfWallet,myMemberId,allMembers}=db;
   const editing=init&&init.id;
   const [type,setType]=useState(init.type||"expense");
   const [amount,setAmount]=useState(init.amount||0);
@@ -2384,7 +2384,7 @@ function TxSheet({db,init,onClose}){
     if(!amount||amount<=0){ alert("Nhập số tiền lớn hơn 0"); return; }
     if(!walletId){ alert("Chọn ví"); return; }
     if(type==="transfer"&&(!toWalletId||toWalletId===walletId)){ alert("Chọn ví nhận khác ví nguồn"); return; }
-    const t={id:editing?init.id:uid(),type,amount,date,note,walletId,by:by||owner||""};
+    const t={id:editing?init.id:uid(),type,amount,date,note,walletId,by:by||(owner&&owner!=="m_gd"?owner:"")};
     if(type==="transfer") t.toWalletId=toWalletId; else t.categoryId=categoryId;
     if(photo) t.photo=photo;
     saveTx(t); onClose();
@@ -2419,8 +2419,8 @@ function TxSheet({db,init,onClose}){
           <input className="input" type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
         <div className="field"><label>Người chi</label>
           <select className="select" value={by} onChange={e=>setBy(e.target.value)}>
-            <option value="">{(memberOfWallet(walletId)||{}).name||"— Không rõ —"}</option>
-            {members.filter(m=>inferOwner(m)).map(m=><option key={m.id} value={m.id}>{m.emoji} {m.name}</option>)}
+            <option value="">— Chọn người chi —</option>
+            {(allMembers||members).filter(m=>inferOwner(m)).map(m=><option key={m.id} value={m.id}>{m.emoji} {m.name}</option>)}
           </select></div>
       </div>
 
