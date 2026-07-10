@@ -659,6 +659,8 @@ const addMonths = (ym,delta)=>{ let [y,m]=ym.split("-").map(Number); m+=delta; w
 const ymLabel = ym=>{ const [y,m]=ym.split("-"); return "Th "+Number(m)+"/"+y; };
 const last6 = ()=>{ const a=[]; let ym=curYM(); for(let i=0;i<6;i++){ a.unshift(ym); ym=addMonths(ym,-1);} return a; };
 const fmtDateVN = s=>{ if(!s) return ""; const [y,m,d]=s.split("-"); return d+"/"+m+"/"+y; };
+const daysUntil = s=>{ if(!s) return 0; const a=new Date(); a.setHours(0,0,0,0); const [y,m,d]=s.split("-").map(Number); const b=new Date(y,m-1,d); return Math.round((b-a)/86400000); };
+const advanceCycle = (s,cycle)=>{ const [y,m,d]=s.split("-").map(Number); const dt=new Date(y,m-1,d); if(cycle==="year") dt.setFullYear(dt.getFullYear()+1); else dt.setMonth(dt.getMonth()+1); return dt.getFullYear()+"-"+pad2(dt.getMonth()+1)+"-"+pad2(dt.getDate()); };
 const fmtTs = ms=>{ const d=new Date(ms), p=n=>String(n).padStart(2,"0"); return p(d.getHours())+":"+p(d.getMinutes())+" · "+p(d.getDate())+"/"+p(d.getMonth()+1); };
 function iconFor(n){ var s=(n||"").toLowerCase();
   var map=[[/bàn nước/,"@pooltable"],[/cà phê|cafe|phê pha/,"☕"],[/đi chợ|siêu thị/,"🛒"],[/ăn vặt|caramen|vặt/,"🍡"],[/ăn sáng/,"🥐"],[/ăn trưa|ăn tối|ăn uống|nhà hàng|gọi đồ|cơm|quán ăn/,"🍜"],[/nhậu|pub|bia|rượu|bàn nước/,"🍺"],[/hoá đơn điện|tiền điện|^điện/,"💡"],[/thuê nhà/,"🏠"],[/room|phòng|nhà cửa|nội thất|furniture|trang trí/,"🛋️"],[/nước/,"💧"],[/hoá đơn|hóa đơn|tiện ích|internet|wifi|mạng/,"🧾"],[/điện thoại|^sim/,"📱"],[/xăng|dầu/,"⛽"],[/taxi|grab|gửi xe|đi lại|di chuyển/,"🚕"],[/bi a|bi-a|gậy|pool/,"🎱"],[/smoking|thuốc lá/,"🚬"],[/vaccine|khám|sức khỏe|y tế|nha khoa|răng|bệnh viện/,"🩺"],[/thuốc/,"💊"],[/quần áo|áo|váy|giày/,"👕"],[/mua sắm|shopping|cần thiết|phụ kiện|linh tinh|đồ dùng/,"🛍️"],[/quà|sinh nhật/,"🎁"],[/mỹ phẩm|làm đẹp|spa/,"💄"],[/cắt tóc|gội đầu/,"💇"],[/sách|học phí|giáo dục|khoá học/,"📚"],[/đồ chơi/,"🧸"],[/sữa|bỉm/,"🍼"],[/bếp|bát đĩa|nồi/,"🍳"],[/đăng ký|gói đăng/,"🔄"],[/du lịch|vé máy bay/,"✈️"],[/lương|thưởng|thu nhập/,"💰"],[/đầu tư/,"📈"],[/tiết kiệm/,"🐷"],[/con cái|em bé|sóc|trẻ/,"🧒"],[/cho vay|^nợ| nợ/,"🤝"],[/gửi|ship/,"📦"],[/tâm linh|chùa|cúng|lễ/,"🛕"]];
@@ -905,8 +907,13 @@ const SEED_BILLS=[
   {id:"bl2",name:"Tiền điện",amount:900000,dueDay:12,categoryId:"c_bill",walletId:"w4",lastPaid:""},
   {id:"bl3",name:"Tiền nước",amount:200000,dueDay:12,categoryId:"c_bill",walletId:"w4",lastPaid:""},
   {id:"bl4",name:"Internet FPT",amount:250000,dueDay:15,categoryId:"c_bill",walletId:"w4",lastPaid:""},
-  {id:"bl5",name:"Netflix + Spotify",amount:260000,dueDay:20,categoryId:"c_fun",walletId:"w5",lastPaid:""},
   {id:"bl6",name:"Học phí Bống",amount:2500000,dueDay:8,categoryId:"c_edu",walletId:"w2",lastPaid:""},
+];
+const SEED_SUBS=[
+  {id:"sb1",name:"Netflix",icon:"🎬",amount:260000,cycle:"month",nextDate:daysAgo(-6),categoryId:"c_fun",walletId:"w5",status:"active"},
+  {id:"sb2",name:"Spotify",icon:"🎵",amount:59000,cycle:"month",nextDate:daysAgo(-14),categoryId:"c_fun",walletId:"w5",status:"active"},
+  {id:"sb3",name:"iCloud 200GB",icon:"☁️",amount:79000,cycle:"month",nextDate:daysAgo(-20),categoryId:"c_bill",walletId:"w2",status:"active"},
+  {id:"sb4",name:"Gói Gym năm",icon:"🏋️",amount:6000000,cycle:"year",nextDate:monthsFromNow(5),categoryId:"c_health",walletId:"w2",status:"active"},
 ];
 const SEED_DEBTS=[
   {id:"d1",kind:"borrow",counterparty:"Vay mua xe (Techcombank)",principal:120000000,remaining:78000000,dueDate:monthsFromNow(20),memberId:"m1",note:"Trả góp ~5tr/tháng"},
@@ -1289,10 +1296,12 @@ function App(){
   const [goals,setGoals]=useState(()=>store.get("vn.goals",IMP?IMP.goals:SEED_GOALS));
   const [bills,setBills]=useState(()=>store.get("vn.bills",IMP?IMP.bills:SEED_BILLS));
   const [debts,setDebts]=useState(()=>store.get("vn.debts",IMP?IMP.debts:SEED_DEBTS));
+  const [subs,setSubs]=useState(()=>store.get("vn.subscriptions",IMP?(IMP.subscriptions||[]):SEED_SUBS));
 
   useEffect(()=>store.set("vn.members",members),[members]);
   useEffect(()=>store.set("vn.wallets",wallets),[wallets]);
   useEffect(()=>store.set("vn.tx",txs),[txs]);
+  useEffect(()=>store.set("vn.subscriptions",subs),[subs]);
   useEffect(()=>store.set("vn.budgets",budgets),[budgets]);
   useEffect(()=>store.set("vn.goals",goals),[goals]);
   useEffect(()=>store.set("vn.bills",bills),[bills]);
@@ -1343,6 +1352,7 @@ function App(){
   const visTxs=useMemo(()=> hiddenWalletIds.size? txs.filter(t=>!hiddenWalletIds.has(t.walletId)&&!hiddenWalletIds.has(t.toWalletId)) : txs,[txs,hiddenWalletIds]);
   const visDebts=useMemo(()=> hiddenMemberIds.size? debts.filter(d=>!hiddenMemberIds.has(d.memberId)) : debts,[debts,hiddenMemberIds]);
   const visBills=useMemo(()=> hiddenWalletIds.size? bills.filter(b=>!hiddenWalletIds.has(b.walletId)) : bills,[bills,hiddenWalletIds]);
+  const visSubs=useMemo(()=> hiddenWalletIds.size? subs.filter(s=>!hiddenWalletIds.has(s.walletId)) : subs,[subs,hiddenWalletIds]);
   const visBudgets=useMemo(()=> hiddenMemberIds.size? budgets.filter(b=>!hiddenMemberIds.has(b.scope)) : budgets,[budgets,hiddenMemberIds]);
   const visGoals=useMemo(()=> hiddenMemberIds.size? goals.filter(g=>!hiddenMemberIds.has(g.scope)) : goals,[goals,hiddenMemberIds]);
   useEffect(()=>{ if(hiddenMemberIds.has(focus)){ const gd=visMembers.find(m=>m.id==="m_gd"); setFocus(gd?gd.id:((visMembers[0]||{}).id||"all")); } },[hiddenMemberIds,visMembers]);
@@ -1385,7 +1395,7 @@ function App(){
     if(changed) store.set("vn.recurring",next);
   },[]);
 
-  const db={members:visMembers,setMembers,wallets:visWallets,setWallets,cats,txs:visTxs,budgets:visBudgets,setBudgets,goals:visGoals,setGoals,bills:visBills,setBills,debts:visDebts,setDebts,
+  const db={members:visMembers,setMembers,wallets:visWallets,setWallets,cats,txs:visTxs,budgets:visBudgets,setBudgets,goals:visGoals,setGoals,bills:visBills,setBills,debts:visDebts,setDebts,subs:visSubs,setSubs,
     ym,setYm,focus,setFocus,memberById,walletById,catById,memberOfWallet,balanceOf,memberBalance,familyTotal,inFocus,budgetSpent,
     addTx,saveTx,delTx,openTx:setTxEdit,setTab,theme,setTheme,txSeg,setTxSeg};
 
@@ -3131,10 +3141,12 @@ function TxTab({db}){
       <div className="seg">
         <button className={seg==="tx"?"on":""} onClick={()=>setSeg("tx")}>🧾 Giao dịch</button>
         <button className={seg==="bill"?"on":""} onClick={()=>setSeg("bill")}>🔁 Hóa đơn</button>
+        <button className={seg==="sub"?"on":""} onClick={()=>setSeg("sub")}>📱 Đăng ký</button>
         <button className={seg==="debt"?"on":""} onClick={()=>setSeg("debt")}>🤝 Nợ</button>
       </div>
       {seg==="tx" && <Transactions db={db}/>}
       {seg==="bill" && <div><Recurring db={db}/><Bills db={db}/></div>}
+      {seg==="sub" && <Subscriptions db={db}/>}
       {seg==="debt" && <Debts db={db}/>}
     </div>
   );
@@ -3278,6 +3290,113 @@ function BillForm({db,init,onClose,onSave,onDel}){
   );
 }
 
+/* ============ GÓI ĐĂNG KÝ (SUBSCRIPTIONS) ============ */
+function Subscriptions({db}){
+  const {subs,setSubs,catById,walletById,memberOfWallet,addTx}=db;
+  const [edit,setEdit]=useState(null);
+  const active=subs.filter(s=>s.status!=="cancelled");
+  const cancelled=subs.filter(s=>s.status==="cancelled");
+  const monthlyTotal=active.reduce((s,x)=>s+(x.cycle==="year"?x.amount/12:x.amount),0);
+  const yearlyTotal=active.reduce((s,x)=>s+(x.cycle==="year"?x.amount:x.amount*12),0);
+  const sorted=active.slice().sort((a,b)=>daysUntil(a.nextDate)-daysUntil(b.nextDate));
+
+  const renew=s=>{
+    addTx({type:"expense",amount:s.amount,date:today(),walletId:s.walletId,categoryId:s.categoryId,note:"Gia hạn: "+s.name});
+    setSubs(p=>p.map(x=>x.id===s.id?Object.assign({},x,{nextDate:advanceCycle(x.nextDate,x.cycle)}):x));
+  };
+  const toggleCancel=s=> setSubs(p=>p.map(x=>x.id===s.id?Object.assign({},x,{status:x.status==="cancelled"?"active":"cancelled"}):x));
+
+  return (
+    <div>
+      <div className="card">
+        <div className="sec-h"><h3>📱 Gói đăng ký</h3></div>
+        <div className="kv"><span>Quy đổi / tháng</span><b>{fmtVND(monthlyTotal)}</b></div>
+        <div className="kv"><span>Quy đổi / năm</span><b>{fmtVND(yearlyTotal)}</b></div>
+        <div className="kv"><span>Đang hoạt động</span><b>{active.length} gói{cancelled.length?(" · "+cancelled.length+" đã hủy"):""}</b></div>
+      </div>
+
+      <div className="sec-h" style={{padding:"0 2px"}}><h3>Danh sách</h3>
+        <button className="addbtn" onClick={()=>setEdit({})}>＋ Thêm</button></div>
+
+      {sorted.length? sorted.map(s=>{
+        const c=catById(s.categoryId)||{}, w=walletById(s.walletId), mem=memberOfWallet(s.walletId);
+        const left=daysUntil(s.nextDate), overdue=left<0;
+        return (
+          <div className="card tight" key={s.id}>
+            <div className="row" style={{padding:0}}>
+              <span className="av" style={{background:(c.color||"#999")+"22"}}>{s.icon||catIcon(c.icon)}</span>
+              <div className="grow" onClick={()=>setEdit(s)}>
+                <div className="ti">{s.name}</div>
+                <div className="desc">{s.cycle==="year"?"Hàng năm":"Hàng tháng"} · {fmtDateVN(s.nextDate)} · {(w&&w.name)||"?"}{mem?(" · "+mem.name):""}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div className="amt out">{fmtVND(s.amount)}</div>
+                <span className={"pill "+(overdue?"r":left<=7?"w":"b")}>{overdue?("Quá hạn "+(-left)+"n"):left===0?"Hôm nay":("Còn "+left+"n")}</span>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:10}}>
+              <button className="btn pri sm" style={{flex:1}} onClick={()=>renew(s)}>Đã gia hạn</button>
+              <button className="btn ghost sm" style={{flex:1}} onClick={()=>toggleCancel(s)}>Hủy gói</button>
+            </div>
+          </div>
+        );
+      }) : <div className="card"><Empty e="📱" title="Chưa có gói đăng ký nào" sub="Thêm Netflix, Spotify, Gym, iCloud…"/></div>}
+
+      {cancelled.length>0 &&
+        <div className="card tight" style={{marginTop:10}}>
+          <div className="tiny muted" style={{fontWeight:800,marginBottom:6}}>Đã hủy</div>
+          {cancelled.map(s=>
+            <div className="row" key={s.id}>
+              <span className="av" style={{background:"var(--bg2)",opacity:.6}}>{s.icon||"📱"}</span>
+              <div className="grow" style={{opacity:.6}} onClick={()=>setEdit(s)}>
+                <div className="ti">{s.name}</div><div className="desc">{fmtVND(s.amount)}/{s.cycle==="year"?"năm":"tháng"}</div></div>
+              <button className="badge" style={{padding:"6px 9px"}} onClick={()=>toggleCancel(s)}>Kích hoạt lại</button>
+            </div>)}
+        </div>}
+
+      {edit!==null &&
+        <SubscriptionForm db={db} init={edit} onClose={()=>setEdit(null)}
+          onSave={s=> setSubs(p=> p.some(x=>x.id===s.id)? p.map(x=>x.id===s.id?s:x):[...p,s])}
+          onDel={id=> setSubs(p=>p.filter(x=>x.id!==id))}/>}
+    </div>
+  );
+}
+function SubscriptionForm({db,init,onClose,onSave,onDel}){
+  const {cats,members,wallets}=db;
+  const editing=init&&init.id;
+  const ICONS=["📱","🎬","🎵","☁️","🏋️","🛡️","🌐","📰","🎮","💻","🧴","✨"];
+  const [name,setName]=useState(init.name||"");
+  const [icon,setIcon]=useState(init.icon||ICONS[0]);
+  const [amount,setAmount]=useState(init.amount||0);
+  const [cycle,setCycle]=useState(init.cycle||"month");
+  const [nextDate,setNextDate]=useState(init.nextDate||today());
+  const [categoryId,setCategoryId]=useState(init.categoryId||"c_fun");
+  const [walletId,setWalletId]=useState(init.walletId||(wallets[0]&&wallets[0].id));
+  return (
+    <Sheet title={editing?"Sửa gói đăng ký":"Thêm gói đăng ký"} onClose={onClose}>
+      <div className="field"><label>Tên dịch vụ</label>
+        <input className="input" value={name} onChange={e=>setName(e.target.value)} placeholder="VD: Netflix"/></div>
+      <div className="field"><label>Biểu tượng</label>
+        <div className="emoji-pick">{ICONS.map(e=><button key={e} className={icon===e?"on":""} onClick={()=>setIcon(e)}>{e}</button>)}</div></div>
+      <div className="two">
+        <div className="field"><label>Số tiền</label><MoneyInput value={amount} onChange={setAmount} kind="out"/></div>
+        <div className="field"><label>Chu kỳ</label>
+          <div className="seg">
+            <button className={cycle==="month"?"on":""} onClick={()=>setCycle("month")}>Tháng</button>
+            <button className={cycle==="year"?"on":""} onClick={()=>setCycle("year")}>Năm</button>
+          </div></div>
+      </div>
+      <div className="field"><label>Ngày gia hạn tiếp theo</label>
+        <input className="input" type="date" value={nextDate} onChange={e=>setNextDate(e.target.value)}/></div>
+      <div className="field"><label>Danh mục</label><CatPicker cats={cats} type="expense" value={categoryId} onChange={setCategoryId}/></div>
+      <WalletSelect members={members} wallets={wallets} value={walletId} onChange={setWalletId} label="Trả từ ví"/>
+      <button className="btn pri block" onClick={()=>{ if(name&&amount>0&&nextDate){ onSave({id:editing?init.id:uid(),name,icon,amount,cycle,nextDate,categoryId,walletId,status:init.status||"active"}); onClose(); } else alert("Nhập tên, số tiền và ngày gia hạn"); }}>
+        {editing?"Lưu":"Thêm gói đăng ký"}</button>
+      {editing && <button className="btn danger block" style={{marginTop:10}} onClick={()=>{ if(confirm("Xóa gói đăng ký?")){ onDel(init.id); onClose(); } }}>🗑 Xóa</button>}
+    </Sheet>
+  );
+}
+
 function Debts({db}){
   const {debts,setDebts,members,memberById,addTx,wallets}=db;
   const [edit,setEdit]=useState(null);
@@ -3412,7 +3531,7 @@ function Family({db}){
   };
   const delWallet=id=>{ if(confirm("Xóa ví? (Giao dịch cũ vẫn giữ lại)")) setWallets(p=>p.filter(w=>w.id!==id)); };
 
-  const ALLKEYS=["vn.members","vn.wallets","vn.cats","vn.tx","vn.budgets","vn.goals","vn.bills","vn.debts","vn.holdings","vn.autosave","vn.recurring","vn.badges","vn.incomegoal","vn.theme","vn.dataVersion"];
+  const ALLKEYS=["vn.members","vn.wallets","vn.cats","vn.tx","vn.budgets","vn.goals","vn.bills","vn.debts","vn.subscriptions","vn.holdings","vn.autosave","vn.recurring","vn.badges","vn.incomegoal","vn.theme","vn.dataVersion"];
   const exportData=()=>{
     const data={}, ks=new Set(ALLKEYS);
     try{ Object.keys(localStorage).forEach(k=>{ if(k.indexOf("vn.")===0) ks.add(k); }); }catch(e){}
@@ -3433,7 +3552,7 @@ function Family({db}){
     rd.readAsText(f);
   };
   const resetAll=()=>{ if(confirm("Xóa toàn bộ dữ liệu đang lưu và nạp lại dữ liệu gốc? Không thể hoàn tác.")){
-    ["vn.members","vn.wallets","vn.tx","vn.budgets","vn.goals","vn.bills","vn.debts","vn.cats"].forEach(k=>store.del(k));
+    ["vn.members","vn.wallets","vn.tx","vn.budgets","vn.goals","vn.bills","vn.debts","vn.subscriptions","vn.cats"].forEach(k=>store.del(k));
     location.reload();
   }};
   const hasImport = typeof window!=="undefined" && window.VINHA_DATA;
