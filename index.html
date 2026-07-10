@@ -1341,7 +1341,7 @@ function App(){
   const isOwner = !sbUser || sbUser.email===OWNER_EMAIL;
   const hiddenMemberIds=useMemo(()=>{
     if(isOwner) return new Set();
-    return new Set(members.filter(m=>String(m.relation||"").trim().toLowerCase()==="chồng").map(m=>m.id));
+    return new Set(members.filter(m=>String(m.relation||"").normalize("NFC").trim().toLowerCase()==="chồng").map(m=>m.id));
   },[members,isOwner]);
   const visMembers=useMemo(()=> hiddenMemberIds.size? members.filter(m=>!hiddenMemberIds.has(m.id)) : members,[members,hiddenMemberIds]);
   const hiddenWalletIds=useMemo(()=>{
