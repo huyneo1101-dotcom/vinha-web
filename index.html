@@ -1616,15 +1616,14 @@ function Home({db}){
       if(sp<=0||sp>budgetTotal) break; n++; m=addMonths(m,-1); }
     return n; })();
 
-  // 💰 #1 Tài sản ròng = ví + tiết kiệm + đầu tư + danh mục thật + cho vay − nợ
+  // 💰 #1 Tài sản ròng = ví + tiết kiệm + đầu tư + danh mục thật − nợ (KHÔNG tính tiền cho vay)
   const holds=store.get("vn.holdings",[]);
   const holdingsVal=holds.reduce((s,h)=>s+h.qty*h.now,0);
-  const lendTot=debts.filter(d=>d.kind==="lend").reduce((s,d)=>s+(d.remaining||0),0);
   const borrowTot=debts.filter(d=>d.kind==="borrow").reduce((s,d)=>s+(d.remaining||0),0);
   const liquidNow=wallets.filter(w=>w.id!=="w_save"&&w.id!=="w_invest").reduce((s,w)=>s+balanceOf(w.id),0);
   const saveNow=balanceOf("w_save"), investNow=balanceOf("w_invest");
-  const netWorth=liquidNow+saveNow+investNow+holdingsVal+lendTot-borrowTot;
-  const nwSeries=last8YM().map(m=>({ym:m, v:liquidNow+walletBalUpto(txs,"w_save",m)+walletBalUpto(txs,"w_invest",m)+holdingsVal+lendTot-borrowTot}));
+  const netWorth=liquidNow+saveNow+investNow+holdingsVal-borrowTot;
+  const nwSeries=last8YM().map(m=>({ym:m, v:liquidNow+walletBalUpto(txs,"w_save",m)+walletBalUpto(txs,"w_invest",m)+holdingsVal-borrowTot}));
   const nwDelta=netWorth-(nwSeries.length>1?nwSeries[nwSeries.length-2].v:netWorth);
 
   // 🔔 #3 Nhắc nhở thông minh
@@ -1676,10 +1675,10 @@ function Home({db}){
                   {nwSeries.map((s,i)=><div key={i} title={ymLabel(s.ym)+": "+fmtK(s.v)} style={{flex:1,height:(10+(s.v-mn)/rng*32)+"px",background:"var(--income)",opacity:i===nwSeries.length-1?1:0.4,borderRadius:"3px 3px 0 0"}}></div>)}
                 </div>); })()}
             <div style={{borderTop:"1px solid var(--line,rgba(0,0,0,.08))",margin:"11px 0 2px"}}></div>
-            {[["💵 Ví & tiền mặt",liquidNow],["🐷 Tiết kiệm",saveNow],["📈 Đầu tư (đã rót)",investNow],["💎 Danh mục thật",holdingsVal],["🤝 Cho vay (sẽ thu)",lendTot],["💳 Nợ phải trả",-borrowTot]].filter(x=>x[1]!==0).map((x,i)=>
+            {[["💵 Ví & tiền mặt",liquidNow],["🐷 Tiết kiệm",saveNow],["📈 Đầu tư (đã rót)",investNow],["💎 Danh mục thật",holdingsVal],["💳 Nợ phải trả",-borrowTot]].filter(x=>x[1]!==0).map((x,i)=>
               <div className="kv" key={i} style={i===0?{borderTop:"none"}:{}}><span className="muted">{x[0]}</span>
                 <b style={{color:x[1]<0?"var(--expense)":"var(--ink)"}}>{x[1]<0?"−":""}{fmtVND(Math.abs(x[1]))}</b></div>)}
-            <div className="tiny muted" style={{marginTop:7}}>Gồm mọi ví + tiết kiệm + đầu tư (giá hiện tại) + cho vay, trừ nợ · biểu đồ ước tính theo tháng.</div>
+            <div className="tiny muted" style={{marginTop:7}}>Gồm mọi ví + tiết kiệm + đầu tư (giá hiện tại), trừ nợ · KHÔNG tính tiền cho vay · biểu đồ ước tính theo tháng.</div>
           </div>)},
         {id:"reminders", when:focus==="m_gd"&&alerts.length>0, node:(
           <div className="card" style={{borderColor:"var(--warn)"}}>
