@@ -1405,7 +1405,7 @@ function App(){
       </React.Fragment>}
 
       <nav className="nav"><div className="nav-in">
-        {[["home","🏠","Tổng quan"],["analytics","📊","Phân tích"],["tx","🧾","Giao dịch"],["plan","🎯","Kế hoạch"],["family","👪","Gia đình"]].map(([k,ic,lb])=>
+        {[["tx","🧾","Giao dịch"],["home","🏠","Tổng quan"],["analytics","📊","Phân tích"],["plan","🎯","Kế hoạch"],["family","👪","Gia đình"]].map(([k,ic,lb])=>
           <button key={k} className={tab===k?"on":""} onClick={()=>setTab(k)}>
             <span className="ni">{ic}</span>{lb}</button>)}
       </div></nav>
