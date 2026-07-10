@@ -341,12 +341,18 @@
   .syncbar i{ width:7px;height:7px;border-radius:50%;background:var(--primary);display:inline-block;flex:0 0 auto }
   .theme-tg{ width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-size:15px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--ink) }
   .theme-tg:active{ transform:scale(.9) }
-  .cloud-pill{ display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 12px;border-radius:11px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--ink);font-size:12.5px;font-weight:700;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis }
+  .cloud-pill{ display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 12px;border-radius:11px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);color:var(--ink);font-size:12.5px;font-weight:700;white-space:nowrap;max-width:170px }
+  .cloud-pill .pill-txt{ overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+  .cloud-pill.icon-only{ width:34px;padding:0;gap:0;max-width:34px;flex:0 0 auto }
   .cloud-pill:active{ transform:scale(.96) }
-  @media(max-width:520px){   /* topbar gọn trên điện thoại: pill chỉ còn icon, ẩn phụ đề, thu nhỏ chọn tháng */
-    .cloud-pill{ max-width:40px; padding:0 9px; gap:0 }
-    .brand small{ display:none }
-    .month-nav b{ min-width:74px; font-size:12px }
+  .pill-badge{ position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--primary);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--bg) }
+  @media(max-width:999px){   /* cột app tối đa 480px tới 1000px: topbar gọn, pill chỉ còn icon, ẩn phụ đề, thu nhỏ chọn tháng */
+    .toprow{ gap:8px }
+    .cloud-pill{ width:34px;padding:0;gap:0;max-width:34px;flex:0 0 auto }
+    .cloud-pill .pill-txt{ display:none }
+    .brand-name{ display:none }
+    .month-nav b{ min-width:62px; font-size:12px }
+    .mbtn{ width:26px }
   }
   .alert{ display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:13px }
   .alert:first-child{ border-top:none }
@@ -1443,9 +1449,9 @@ function App(){
     <div className="wrap">
       <div className="topbar">
         <div className="toprow">
-          <div className="brand"><span className="logo" style={{padding:0,overflow:"hidden"}}><img src="icons/icon.svg" alt="VíNhà" style={{width:"100%",height:"100%",display:"block",objectFit:"cover"}}/></span><div>VíNhà<small>Tài chính gia đình</small></div></div>
-          {SB && <button className="cloud-pill" style={{marginLeft:"auto"}} onClick={()=>setAuthOpen(true)} title="Đồng bộ đám mây"><IconCloud/>{sbUser?(((sbUser.email||"").split("@")[0])||"Tài khoản"):"Đăng nhập"}</button>}
-          {SB && sbUser && <button className="cloud-pill" style={{marginLeft:8,position:"relative"}} onClick={()=>setInboxOpen(true)} title="Giao dịch từ ngân hàng"><IconTrayDown/>{inbox.length?inbox.length:""}</button>}
+          <div className="brand"><span className="logo" style={{padding:0,overflow:"hidden"}}><img src="icons/icon.svg" alt="VíNhà" style={{width:"100%",height:"100%",display:"block",objectFit:"cover"}}/></span><div className="brand-name">VíNhà<small>Tài chính gia đình</small></div></div>
+          {SB && <button className="cloud-pill" style={{marginLeft:"auto"}} onClick={()=>setAuthOpen(true)} title="Đồng bộ đám mây"><IconCloud/><span className="pill-txt">{sbUser?(((sbUser.email||"").split("@")[0])||"Tài khoản"):"Đăng nhập"}</span></button>}
+          {SB && sbUser && <button className="cloud-pill icon-only" style={{marginLeft:8,position:"relative"}} onClick={()=>setInboxOpen(true)} title="Giao dịch từ ngân hàng"><IconTrayDown/>{inbox.length?<span className="pill-badge">{inbox.length}</span>:null}</button>}
           <button className="theme-tg" aria-label="Sáng/Tối" style={{marginLeft:SB?8:"auto"}} onClick={()=>setTheme(t=>({...t,dark:!t.dark}))}>{theme.dark?<IconSun size={17}/>:<IconMoon size={17}/>}</button>
           <div className="month-nav" style={{marginLeft:8}}>
             <button className="mbtn" aria-label="Tháng trước" onClick={()=>setYm(addMonths(ym,-1))}>‹</button>
