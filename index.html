@@ -698,6 +698,8 @@ const store = (()=>{
 
 /* ====== ĐỒNG BỘ ĐÁM MÂY (Supabase) — lưu toàn bộ vn.* thành 1 blob theo tài khoản (giống nhipco_state).
    Đăng nhập -> dữ liệu riêng tư (RLS) + mở được trên mọi thiết bị. Đăng xuất -> chạy offline như cũ. ====== */
+/* Ví/thành viên có quan hệ "Chồng" chỉ hiển thị khi đăng nhập đúng tài khoản chủ (ẩn hoàn toàn với tài khoản khác) */
+const OWNER_EMAIL="huyneo1101@gmail.com";
 const SB_URL="https://ltmlueqkajqmduoqghdf.supabase.co";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0bWx1ZXFrYWpxbWR1b3FnaGRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4NTA2NjcsImV4cCI6MjA5NzQyNjY2N30.rvwZsQiaD8a7fFLwBFk5sgSe6o9t9NqbPfVh1hJvxa0";
 const SB=(typeof supabase!=="undefined"&&supabase.createClient)?supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}}):null;
@@ -1326,9 +1328,28 @@ function App(){
   useEffect(()=>{ store.set("vn.theme",theme); applyTheme(theme); },[theme]);
   const syncTs=(()=>{ const v=store.get("vn.syncVersion",""); const m=/sync-(\d+)/.exec(String(v)); return m?Number(m[1]):null; })();
 
+  // ví/thành viên quan hệ "Chồng" — chỉ hiện với đúng tài khoản chủ (huyneo1101@gmail.com); ẩn hoàn toàn (kể cả tổng số liệu) với tài khoản khác
+  const isOwner = !sbUser || sbUser.email===OWNER_EMAIL;
+  const hiddenMemberIds=useMemo(()=>{
+    if(isOwner) return new Set();
+    return new Set(members.filter(m=>String(m.relation||"").trim().toLowerCase()==="chồng").map(m=>m.id));
+  },[members,isOwner]);
+  const visMembers=useMemo(()=> hiddenMemberIds.size? members.filter(m=>!hiddenMemberIds.has(m.id)) : members,[members,hiddenMemberIds]);
+  const hiddenWalletIds=useMemo(()=>{
+    if(!hiddenMemberIds.size) return new Set();
+    return new Set(wallets.filter(w=>hiddenMemberIds.has(w.memberId)).map(w=>w.id));
+  },[wallets,hiddenMemberIds]);
+  const visWallets=useMemo(()=> hiddenWalletIds.size? wallets.filter(w=>!hiddenWalletIds.has(w.id)) : wallets,[wallets,hiddenWalletIds]);
+  const visTxs=useMemo(()=> hiddenWalletIds.size? txs.filter(t=>!hiddenWalletIds.has(t.walletId)&&!hiddenWalletIds.has(t.toWalletId)) : txs,[txs,hiddenWalletIds]);
+  const visDebts=useMemo(()=> hiddenMemberIds.size? debts.filter(d=>!hiddenMemberIds.has(d.memberId)) : debts,[debts,hiddenMemberIds]);
+  const visBills=useMemo(()=> hiddenWalletIds.size? bills.filter(b=>!hiddenWalletIds.has(b.walletId)) : bills,[bills,hiddenWalletIds]);
+  const visBudgets=useMemo(()=> hiddenMemberIds.size? budgets.filter(b=>!hiddenMemberIds.has(b.scope)) : budgets,[budgets,hiddenMemberIds]);
+  const visGoals=useMemo(()=> hiddenMemberIds.size? goals.filter(g=>!hiddenMemberIds.has(g.scope)) : goals,[goals,hiddenMemberIds]);
+  useEffect(()=>{ if(hiddenMemberIds.has(focus)){ const gd=visMembers.find(m=>m.id==="m_gd"); setFocus(gd?gd.id:((visMembers[0]||{}).id||"all")); } },[hiddenMemberIds,visMembers]);
+
   // helpers — memo hoá bản đồ tra cứu & số dư (tránh .find()/quét tx lặp lại mỗi render)
-  const mById=useMemo(()=>{const m={};members.forEach(x=>m[x.id]=x);return m;},[members]);
-  const wById=useMemo(()=>{const m={};wallets.forEach(x=>m[x.id]=x);return m;},[wallets]);
+  const mById=useMemo(()=>{const m={};visMembers.forEach(x=>m[x.id]=x);return m;},[visMembers]);
+  const wById=useMemo(()=>{const m={};visWallets.forEach(x=>m[x.id]=x);return m;},[visWallets]);
   const cById=useMemo(()=>{const m={};cats.forEach(x=>m[x.id]=x);return m;},[cats]);
   const memberById=id=>mById[id];
   const walletById=id=>wById[id];
@@ -1336,19 +1357,19 @@ function App(){
   const memberOfWallet=wid=>{ const w=wById[wid]; return w?mById[w.memberId]:null; };
 
   const balMap=useMemo(()=>{
-    const m={}; wallets.forEach(w=>m[w.id]=w.opening||0);
-    txs.forEach(t=>{
+    const m={}; visWallets.forEach(w=>m[w.id]=w.opening||0);
+    visTxs.forEach(t=>{
       if(t.type==="income"){ if(m[t.walletId]!=null) m[t.walletId]+=t.amount; }
       else if(t.type==="expense"){ if(m[t.walletId]!=null) m[t.walletId]-=t.amount; }
       else if(t.type==="transfer"){ if(m[t.walletId]!=null)m[t.walletId]-=t.amount; if(m[t.toWalletId]!=null)m[t.toWalletId]+=t.amount; }
     });
     return m;
-  },[wallets,txs]);
+  },[visWallets,visTxs]);
   const balanceOf=wid=> balMap[wid]||0;
-  const memberBalance=mid=> wallets.filter(w=>w.memberId===mid).reduce((s,w)=>s+balanceOf(w.id),0);
-  const familyTotal=()=> wallets.reduce((s,w)=>s+balanceOf(w.id),0);
+  const memberBalance=mid=> visWallets.filter(w=>w.memberId===mid).reduce((s,w)=>s+balanceOf(w.id),0);
+  const familyTotal=()=> visWallets.reduce((s,w)=>s+balanceOf(w.id),0);
   const inFocus=(t,f)=>{ if(!f||f==="all") return true; const w=wById[t.walletId], w2=t.toWalletId?wById[t.toWalletId]:null; return !!((w&&w.memberId===f)||(w2&&w2.memberId===f)); };
-  const budgetSpent=(b,m)=> txs.filter(t=>t.type==="expense"&&ymOf(t.date)===m&&t.categoryId===b.categoryId&&(b.scope==="family"||(memberOfWallet(t.walletId)||{}).id===b.scope)).reduce((s,t)=>s+t.amount,0);
+  const budgetSpent=(b,m)=> visTxs.filter(t=>t.type==="expense"&&ymOf(t.date)===m&&t.categoryId===b.categoryId&&(b.scope==="family"||(memberOfWallet(t.walletId)||{}).id===b.scope)).reduce((s,t)=>s+t.amount,0);
 
   // actions
   const addTx=t=> setTxs(p=>[Object.assign({id:uid()},t),...p]);
@@ -1364,7 +1385,7 @@ function App(){
     if(changed) store.set("vn.recurring",next);
   },[]);
 
-  const db={members,setMembers,wallets,setWallets,cats,txs,budgets,setBudgets,goals,setGoals,bills,setBills,debts,setDebts,
+  const db={members:visMembers,setMembers,wallets:visWallets,setWallets,cats,txs:visTxs,budgets:visBudgets,setBudgets,goals:visGoals,setGoals,bills:visBills,setBills,debts:visDebts,setDebts,
     ym,setYm,focus,setFocus,memberById,walletById,catById,memberOfWallet,balanceOf,memberBalance,familyTotal,inFocus,budgetSpent,
     addTx,saveTx,delTx,openTx:setTxEdit,setTab,theme,setTheme,txSeg,setTxSeg};
 
@@ -1385,7 +1406,7 @@ function App(){
         {syncTs && <div className="syncbar"><i></i>Đồng bộ MoneyLover · {fmtTs(syncTs)}</div>}
         {(tab==="home"||(tab==="tx"&&txSeg==="tx")||tab==="analytics") &&
           <div className="chips">
-            {members.map(m=>
+            {visMembers.map(m=>
               <button key={m.id} className={"chip"+(focus===m.id?" on":"")} onClick={()=>setFocus(m.id)}>
                 <span className="dot" style={{background:m.color+"22"}}>{m.emoji}</span>{m.name}</button>)}
           </div>}
