@@ -700,8 +700,11 @@ const store = (()=>{
 
 /* ====== ĐỒNG BỘ ĐÁM MÂY (Supabase) — lưu toàn bộ vn.* thành 1 blob theo tài khoản (giống nhipco_state).
    Đăng nhập -> dữ liệu riêng tư (RLS) + mở được trên mọi thiết bị. Đăng xuất -> chạy offline như cũ. ====== */
-/* Ví/thành viên có quan hệ "Chồng" chỉ hiển thị khi đăng nhập đúng tài khoản chủ (ẩn hoàn toàn với tài khoản khác) */
-const OWNER_EMAIL="huyneo1101@gmail.com";
+/* Thành viên có gắn m.privateTo = email -> chỉ hiển thị (ví/giao dịch/nợ/hóa đơn/subscriptions liên quan) với đúng tài khoản đó, ẩn hoàn toàn với tài khoản khác trong nhà */
+const PRIVATE_ACCOUNTS=[
+  {email:"huyneo1101@gmail.com",label:"Chồng · huyneo1101@gmail.com"},
+  {email:"ngphuonganh181@gmail.com",label:"Vợ · ngphuonganh181@gmail.com"},
+];
 const SB_URL="https://ltmlueqkajqmduoqghdf.supabase.co";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0bWx1ZXFrYWpxbWR1b3FnaGRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4NTA2NjcsImV4cCI6MjA5NzQyNjY2N30.rvwZsQiaD8a7fFLwBFk5sgSe6o9t9NqbPfVh1hJvxa0";
 const SB=(typeof supabase!=="undefined"&&supabase.createClient)?supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}}):null;
@@ -1337,12 +1340,12 @@ function App(){
   useEffect(()=>{ store.set("vn.theme",theme); applyTheme(theme); },[theme]);
   const syncTs=(()=>{ const v=store.get("vn.syncVersion",""); const m=/sync-(\d+)/.exec(String(v)); return m?Number(m[1]):null; })();
 
-  // ví/thành viên quan hệ "Chồng" — chỉ hiện với đúng tài khoản chủ (huyneo1101@gmail.com); ẩn hoàn toàn (kể cả tổng số liệu) với tài khoản khác
-  const isOwner = !sbUser || sbUser.email===OWNER_EMAIL;
+  // thành viên gắn "Chỉ hiển thị với" (m.privateTo) — chỉ hiện đúng tài khoản đó; ẩn hoàn toàn (kể cả tổng số liệu) với tài khoản khác trong nhà
+  const myEmail = sbUser ? sbUser.email : "";
   const hiddenMemberIds=useMemo(()=>{
-    if(isOwner) return new Set();
-    return new Set(members.filter(m=>String(m.relation||"").normalize("NFC").trim().toLowerCase()==="chồng").map(m=>m.id));
-  },[members,isOwner]);
+    if(!myEmail) return new Set(); // chưa đăng nhập -> coi là thiết bị của chủ, hiện hết
+    return new Set(members.filter(m=>m.privateTo && m.privateTo!==myEmail).map(m=>m.id));
+  },[members,myEmail]);
   const visMembers=useMemo(()=> hiddenMemberIds.size? members.filter(m=>!hiddenMemberIds.has(m.id)) : members,[members,hiddenMemberIds]);
   const hiddenWalletIds=useMemo(()=>{
     if(!hiddenMemberIds.size) return new Set();
@@ -3585,7 +3588,7 @@ function Family({db}){
           <div className="row" key={m.id}>
             <span className="av" style={{background:m.color+"22"}}>{m.emoji}</span>
             <div className="grow" onClick={()=>setMEdit(m)}>
-              <div className="ti">{m.name} <span className="badge">{m.relation}</span></div>
+              <div className="ti">{m.name} <span className="badge">{m.relation}</span>{m.privateTo?" 🔒":""}</div>
               <div className="desc">{fmtVND(memberBalance(m.id))} · {wallets.filter(w=>w.memberId===m.id).length} ví</div></div>
             <button className="badge" style={{padding:"6px 9px"}} onClick={()=>delMember(m.id)}>🗑</button>
           </div>)}
@@ -3654,6 +3657,7 @@ function MemberForm({init,onClose,onSave}){
   const [relation,setRelation]=useState(init.relation||"");
   const [emoji,setEmoji]=useState(init.emoji||"🧑");
   const [color,setColor]=useState(init.color||MEMBER_COLORS[0]);
+  const [privateTo,setPrivateTo]=useState(init.privateTo||"");
   return (
     <Sheet title={editing?"Sửa thành viên":"Thêm thành viên"} onClose={onClose}>
       <div className="two">
@@ -3664,7 +3668,13 @@ function MemberForm({init,onClose,onSave}){
         <div className="emoji-pick">{EMO.map(e=><button key={e} className={emoji===e?"on":""} onClick={()=>setEmoji(e)}>{e}</button>)}</div></div>
       <div className="field"><label>Màu</label>
         <div className="swatches">{MEMBER_COLORS.map(cl=><button key={cl} className={"swatch"+(color===cl?" on":"")} style={{background:cl}} onClick={()=>setColor(cl)}></button>)}</div></div>
-      <button className="btn pri block" onClick={()=>{ if(name){ onSave({id:editing?init.id:uid(),name,relation,emoji,color}); onClose(); } else alert("Nhập tên"); }}>
+      <div className="field"><label>Chỉ hiển thị với</label>
+        <select className="select" value={privateTo} onChange={e=>setPrivateTo(e.target.value)}>
+          <option value="">Mọi người trong nhà</option>
+          {PRIVATE_ACCOUNTS.map(a=><option key={a.email} value={a.email}>{a.label}</option>)}
+        </select>
+        <div className="tiny muted" style={{marginTop:5}}>Chọn 1 tài khoản để ẩn hoàn toàn thành viên/ví này (kể cả số dư, giao dịch) với tài khoản còn lại trong nhà.</div></div>
+      <button className="btn pri block" onClick={()=>{ if(name){ onSave({id:editing?init.id:uid(),name,relation,emoji,color,privateTo}); onClose(); } else alert("Nhập tên"); }}>
         {editing?"Lưu":"Thêm thành viên"}</button>
     </Sheet>
   );
