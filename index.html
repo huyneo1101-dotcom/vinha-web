@@ -2338,7 +2338,7 @@ function TxSheet({db,init,onClose}){
         <div className="field"><label>Người chi</label>
           <select className="select" value={by} onChange={e=>setBy(e.target.value)}>
             <option value="">{(memberOfWallet(walletId)||{}).name||"— Không rõ —"}</option>
-            {members.map(m=><option key={m.id} value={m.id}>{m.emoji} {m.name}</option>)}
+            {members.filter(m=>inferOwner(m)).map(m=><option key={m.id} value={m.id}>{m.emoji} {m.name}</option>)}
           </select></div>
       </div>
 
