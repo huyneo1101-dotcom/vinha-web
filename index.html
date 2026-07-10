@@ -701,13 +701,20 @@ const store = (()=>{
 /* ====== ĐỒNG BỘ ĐÁM MÂY (Supabase) — lưu toàn bộ vn.* thành 1 blob theo tài khoản (giống nhipco_state).
    Đăng nhập -> dữ liệu riêng tư (RLS) + mở được trên mọi thiết bị. Đăng xuất -> chạy offline như cũ. ====== */
 /* Thành viên có gắn m.privateTo = email -> chỉ hiển thị (ví/giao dịch/nợ/hóa đơn/subscriptions liên quan) với đúng tài khoản đó, ẩn hoàn toàn với tài khoản khác trong nhà.
-   Nếu không gắn thủ công, tự suy ra từ field "Quan hệ" (Chồng/Vợ) — không cần chỉnh setting. */
+   Nếu không gắn thủ công, tự suy ra từ field "Quan hệ" (Chồng/Vợ) hoặc tên (Huy/Phương Anh) — không cần chỉnh setting. */
 const PRIVATE_ACCOUNTS=[
   {email:"huyneo1101@gmail.com",label:"Chồng · huyneo1101@gmail.com"},
   {email:"ngphuonganh181@gmail.com",label:"Vợ · ngphuonganh181@gmail.com"},
 ];
 const RELATION_OWNER={"chồng":"huyneo1101@gmail.com","vợ":"ngphuonganh181@gmail.com"};
-const inferOwner=m=>{ if(m.privateTo) return m.privateTo; const r=String(m.relation||"").normalize("NFC").trim().toLowerCase(); return RELATION_OWNER[r]||""; };
+const NAME_OWNER={"huy":"huyneo1101@gmail.com","phương anh":"ngphuonganh181@gmail.com"};
+const norm=s=>String(s||"").normalize("NFC").trim().toLowerCase();
+const inferOwner=m=>{
+  if(m.privateTo) return m.privateTo;
+  const rel=norm(m.relation); if(RELATION_OWNER[rel]) return RELATION_OWNER[rel];
+  const nm=norm(m.name); if(NAME_OWNER[nm]) return NAME_OWNER[nm];
+  return "";
+};
 const SB_URL="https://ltmlueqkajqmduoqghdf.supabase.co";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0bWx1ZXFrYWpxbWR1b3FnaGRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4NTA2NjcsImV4cCI6MjA5NzQyNjY2N30.rvwZsQiaD8a7fFLwBFk5sgSe6o9t9NqbPfVh1hJvxa0";
 const SB=(typeof supabase!=="undefined"&&supabase.createClient)?supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}}):null;
