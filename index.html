@@ -1339,6 +1339,8 @@ function App(){
   const [bills,setBills]=useState(()=>store.get("vn.bills",IMP?IMP.bills:SEED_BILLS));
   const [debts,setDebts]=useState(()=>store.get("vn.debts",IMP?IMP.debts:SEED_DEBTS));
   const [subs,setSubs]=useState(()=>store.get("vn.subscriptions",IMP?(IMP.subscriptions||[]):SEED_SUBS));
+  const [budgetNotifOn,setBudgetNotifOn]=useState(()=>store.get("vn.budgetNotifOn",false));
+  useEffect(()=>store.set("vn.budgetNotifOn",budgetNotifOn),[budgetNotifOn]);
 
   useEffect(()=>store.set("vn.members",members),[members]);
   useEffect(()=>store.set("vn.wallets",wallets),[wallets]);
@@ -1427,6 +1429,25 @@ function App(){
   const inFocus=(t,f)=>{ if(!f||f==="all") return true; const w=wById[t.walletId], w2=t.toWalletId?wById[t.toWalletId]:null; return !!((w&&w.memberId===f)||(w2&&w2.memberId===f)); };
   const budgetSpent=(b,m)=> visTxs.filter(t=>t.type==="expense"&&ymOf(t.date)===m&&t.categoryId===b.categoryId&&(b.scope==="family"||(memberOfWallet(t.walletId)||{}).id===b.scope)).reduce((s,t)=>s+t.amount,0);
 
+  // 🔔 thông báo ngân sách (Notification API) — kiểm tra 1 lần/ngày khi đã bật, báo mục nào ≥80% hoặc đã vượt hạn mức tháng hiện tại
+  useEffect(()=>{
+    if(!budgetNotifOn) return;
+    if(typeof Notification==="undefined" || Notification.permission!=="granted") return;
+    const todayStr=today();
+    if(store.get("vn.budgetNotifLast","")===todayStr) return;
+    const cm=curYM();
+    const overs=visBudgets.map(b=>{ const sp=budgetSpent(b,cm); const pct=b.amount>0?sp/b.amount:0; const c=catById(b.categoryId)||{}; return {c,sp,pct,amount:b.amount}; })
+      .filter(x=>x.pct>=0.8).sort((a,b)=>b.pct-a.pct);
+    store.set("vn.budgetNotifLast",todayStr);
+    if(!overs.length) return;
+    const worst=overs[0];
+    const title = worst.pct>1 ? "⚠️ Ngân sách đã vượt hạn mức" : "🔔 Ngân sách sắp chạm hạn mức";
+    const body = overs.length===1
+      ? (worst.c.name||"Danh mục")+": "+fmtVND(worst.sp)+" / "+fmtVND(worst.amount)+(worst.pct>1?(" · vượt "+fmtVND(worst.sp-worst.amount)):(" · "+Math.round(worst.pct*100)+"%"))
+      : overs.length+" danh mục đang ở mức cảnh báo · nặng nhất: "+(worst.c.name||"")+" "+Math.round(worst.pct*100)+"%";
+    try{ new Notification(title,{body,icon:"icons/icon-192.png",tag:"vn-budget"}); }catch(e){}
+  },[budgetNotifOn,visBudgets,visTxs]);
+
   // actions
   const addTx=t=> setTxs(p=>[Object.assign({id:uid()},t),...p]);
   const saveTx=t=> setTxs(p=> p.some(x=>x.id===t.id)? p.map(x=>x.id===t.id?t:x) : [t,...p]);
@@ -1443,7 +1464,7 @@ function App(){
 
   const db={members:visMembers,setMembers,wallets:visWallets,setWallets,cats,txs:visTxs,budgets:visBudgets,setBudgets,goals:visGoals,setGoals,bills:visBills,setBills,debts:visDebts,setDebts,subs:visSubs,setSubs,
     ym,setYm,focus,setFocus,memberById,walletById,catById,memberOfWallet,balanceOf,memberBalance,familyTotal,inFocus,budgetSpent,
-    addTx,saveTx,delTx,openTx:setTxEdit,setTab,theme,setTheme,txSeg,setTxSeg,memberByIdAny,myMemberId};
+    addTx,saveTx,delTx,openTx:setTxEdit,setTab,theme,setTheme,txSeg,setTxSeg,memberByIdAny,myMemberId,budgetNotifOn,setBudgetNotifOn};
 
   return (
     <div className="wrap">
@@ -2962,6 +2983,7 @@ function RotSheet({db,dir,saved,invested,onClose}){
 function Budgets({db}){
   const {budgets,setBudgets,cats,txs,ym,members,memberOfWallet,catById}=db;
   const [edit,setEdit]=useState(null);
+  const [autoOpen,setAutoOpen]=useState(false);
 
   const spentOf=b=> db.budgetSpent(b,ym);
 
@@ -2978,6 +3000,8 @@ function Budgets({db}){
         <div className={"bar"+(totSpent>totBudget?" over":totSpent>totBudget*0.8?" warn":"")}>
           <i style={{width:Math.min(100,totSpent/(totBudget||1)*100)+"%"}}></i></div>
         <div className="tiny muted" style={{marginTop:7}}>Còn lại có thể chi: <b style={{color:totBudget-totSpent>=0?"var(--income)":"var(--expense)"}}>{fmtVND(totBudget-totSpent)}</b></div>
+        <button className="btn ghost sm block" style={{marginTop:10}} onClick={()=>setAutoOpen(true)}>🪄 Tự động phân bổ ngân sách</button>
+        <BudgetNotifToggle db={db}/>
       </div>
 
       <div className="sec-h" style={{padding:"0 2px"}}><h3>Theo danh mục</h3>
@@ -3008,8 +3032,92 @@ function Budgets({db}){
         <BudgetForm db={db} init={edit} onClose={()=>setEdit(null)}
           onSave={b=> setBudgets(p=> p.some(x=>x.id===b.id)? p.map(x=>x.id===b.id?b:x):[...p,b])}
           onDel={id=> setBudgets(p=>p.filter(x=>x.id!==id))}/>}
+      {autoOpen && <AutoAllocateSheet db={db} onClose={()=>setAutoOpen(false)}/>}
     </div>
   );
+}
+/* 🪄 tự động phân bổ ngân sách theo chi tiêu thực tế tháng trước, giữ nguyên các mục cố định, vừa đúng tổng mục tiêu */
+function AutoAllocateSheet({db,onClose}){
+  const {budgets,setBudgets,txs,ym,catById}=db;
+  const FIXED=/điện|nước|thuê|trọ|nhà ở|internet|wifi|học phí|học|giáo dục|trường|thuốc|khám|bệnh|y tế|sức khỏe|bảo hiểm|sữa|bỉm|tã|vay|trả nợ|hoá đơn|hóa đơn/i;
+  const [target,setTarget]=useState(11000000);
+  const lastYM=addMonths(ym,-1);
+
+  const plan=useMemo(()=>{
+    const spendLast={};
+    txs.filter(t=>t.type==="expense"&&ymOf(t.date)===lastYM).forEach(t=>{ spendLast[t.categoryId]=(spendLast[t.categoryId]||0)+t.amount; });
+    const curByCat={}; budgets.forEach(b=>{ curByCat[b.categoryId]=b; });
+    const cids=new Set([...Object.keys(spendLast),...Object.keys(curByCat)]);
+    const rows=Array.from(cids).map(cid=>{
+      const c=catById(cid)||{};
+      const baseline=Math.max(spendLast[cid]||0,(curByCat[cid]||{}).amount||0);
+      return {cid,c,baseline,fixed:FIXED.test(c.name||"")};
+    }).filter(r=>r.baseline>0 && r.c.name);
+
+    const fixedSum=rows.filter(r=>r.fixed).reduce((s,r)=>s+r.baseline,0);
+    const flexRows=rows.filter(r=>!r.fixed);
+    const flexSum=flexRows.reduce((s,r)=>s+r.baseline,0);
+    const remain=Math.max(0,target-fixedSum);
+    const scale=flexSum>0? Math.min(1,remain/flexSum):1;
+    const out=rows.map(r=>{
+      const raw=r.fixed? r.baseline : r.baseline*scale;
+      return {...r,amount:Math.max(0,Math.round(raw/10000)*10000)};
+    }).sort((a,b)=>b.amount-a.amount);
+    const total=out.reduce((s,r)=>s+r.amount,0);
+    return {rows:out,fixedSum,total,overFixed:fixedSum>target};
+  },[budgets,txs,ym,target]);
+
+  const apply=()=>{
+    setBudgets(p=>{
+      const has=new Set(p.map(b=>b.categoryId));
+      const next=p.map(b=>{ const r=plan.rows.find(x=>x.cid===b.categoryId); return r? Object.assign({},b,{amount:r.amount}):b; });
+      plan.rows.forEach(r=>{ if(!has.has(r.cid)) next.push({id:uid(),categoryId:r.cid,scope:"family",amount:r.amount}); });
+      return next;
+    });
+    onClose();
+  };
+
+  return (
+    <Sheet title="🪄 Tự động phân bổ ngân sách" onClose={onClose}>
+      <div className="field"><label>Tổng ngân sách tháng (mục tiêu)</label>
+        <MoneyInput value={target} onChange={setTarget} kind="out" autoFocus/></div>
+      <div className="tiny muted" style={{marginBottom:10}}>Dựa trên chi tiêu thực tế tháng {ymLabel(lastYM)} theo từng danh mục. Các mục cố định (điện, nước, thuê nhà, học phí, vay…) giữ nguyên số cũ, phần còn lại (ăn uống, mua sắm, giải trí…) chia theo tỉ lệ để tổng vừa đúng mục tiêu.</div>
+      {plan.overFixed &&
+        <div className="tiny" style={{color:"var(--expense)",marginBottom:10}}>⚠️ Riêng các mục cố định đã {fmtVND(plan.fixedSum)}, vượt mục tiêu {fmtVND(target)} — các mục linh hoạt sẽ về 0đ. Cân nhắc tăng mục tiêu.</div>}
+      {plan.rows.length?
+        <div className="card tight" style={{marginBottom:10}}>
+          {plan.rows.map(r=>
+            <div className="row" key={r.cid}>
+              <span className="av" style={{background:(r.c.color||"#999")+"22"}}>{catIcon(r.c.icon)}</span>
+              <div className="grow"><div className="ti">{r.c.name}{r.fixed?<span className="badge" style={{marginLeft:6}}>cố định</span>:null}</div>
+                <div className="desc">Tháng trước: {fmtVND(r.baseline)}</div></div>
+              <b>{fmtVND(r.amount)}</b>
+            </div>)}
+        </div>
+        : <div className="tiny muted" style={{marginBottom:10}}>Chưa có chi tiêu tháng {ymLabel(lastYM)} để tính toán.</div>}
+      <div className="kv"><span>Tổng sau phân bổ</span><b>{fmtVND(plan.total)}</b></div>
+      <button className="btn pri block" style={{marginTop:12}} disabled={!plan.rows.length} onClick={apply}>Áp dụng {plan.rows.length} danh mục</button>
+    </Sheet>
+  );
+}
+/* 🔔 bật/tắt thông báo ngân sách (Notification API trình duyệt) */
+function BudgetNotifToggle({db}){
+  const {budgetNotifOn,setBudgetNotifOn}=db;
+  const supported=typeof Notification!=="undefined";
+  const enable=async()=>{
+    if(!supported){ alert("Trình duyệt này không hỗ trợ thông báo."); return; }
+    if(Notification.permission==="denied"){ alert("Bạn đã chặn thông báo cho trang này. Vào cài đặt trình duyệt (biểu tượng khoá cạnh địa chỉ trang) để bật lại quyền Thông báo."); return; }
+    let p=Notification.permission;
+    if(p==="default") p=await Notification.requestPermission();
+    if(p==="granted"){ store.del("vn.budgetNotifLast"); setBudgetNotifOn(true); }
+  };
+  if(budgetNotifOn) return (
+    <div className="row" style={{padding:"8px 0 0"}}>
+      <span className="tiny muted">🔔 Đã bật thông báo khi ngân sách sắp/đã vượt hạn mức</span>
+      <button className="badge" style={{marginLeft:"auto",padding:"6px 9px",cursor:"pointer"}} onClick={()=>setBudgetNotifOn(false)}>Tắt</button>
+    </div>
+  );
+  return <button className="btn ghost sm block" style={{marginTop:8}} onClick={enable}>🔔 Bật thông báo ngân sách</button>;
 }
 function BudgetForm({db,init,onClose,onSave,onDel}){
   const {cats,members}=db;
