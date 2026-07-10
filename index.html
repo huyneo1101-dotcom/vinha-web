@@ -1898,7 +1898,7 @@ function ShoppingSaver(){
   );
 }
 function Analytics({db}){
-  const {ym,focus,txs,budgets,catById}=db;
+  const {ym,focus,txs,budgets,catById,wallets,memberOfWallet,memberByIdAny}=db;
   const inFocus=t=>db.inFocus(t,focus);
   const monthTx=txs.filter(t=>ymOf(t.date)===ym && inFocus(t));
   const expense=monthTx.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);
@@ -1942,6 +1942,15 @@ function Analytics({db}){
   const bStreak=(()=>{ if(bTotal<=0) return 0; let n=0,mm=addMonths(curYM(),-1);
     for(let i=0;i<24;i++){ const sp=budgets.reduce((s,b)=>s+db.budgetSpent(b,mm),0); if(sp<=0||sp>bTotal) break; n++; mm=addMonths(mm,-1); } return n; })();
 
+  // 👫 chi tiêu ví CHUNG (Gia đình, Sóc…) tháng này, tách theo người thực sự chi (field "Người chi")
+  const sharedWalletIds=new Set(wallets.filter(w=>{ const m=memberOfWallet(w.id); return !(m&&inferOwner(m)); }).map(w=>w.id));
+  const sharedExp=monthTx.filter(t=>t.type==="expense"&&sharedWalletIds.has(t.walletId));
+  const sharedTotal=sharedExp.reduce((s,t)=>s+t.amount,0);
+  const byPerson={};
+  sharedExp.forEach(t=>{ const bm=t.by?memberByIdAny(t.by):null; const key=bm?bm.id:"unknown"; byPerson[key]=(byPerson[key]||0)+t.amount; });
+  const personRows=Object.keys(byPerson).map(k=>{ const m=k==="unknown"?null:memberByIdAny(k);
+    return {id:k,name:m?m.name:"Chưa rõ người chi",emoji:m?m.emoji:"❔",color:(m&&m.color)||"#7a8794",amount:byPerson[k]}; }).sort((a,b)=>b.amount-a.amount);
+
   return (
     <div>
       {isCurM && bTotal>0 &&
@@ -1967,6 +1976,21 @@ function Analytics({db}){
             <b style={{fontSize:14}}>{bStreak} tháng liên tiếp giữ trong ngân sách</b>
             <div className="tiny muted">Giữ vững nhịp này — mỗi tháng đạt là một bước gần mục tiêu hơn!</div>
           </div>
+        </div>}
+      {sharedTotal>0 &&
+        <div className="card">
+          <div className="sec-h"><h3>👫 Chi tiêu ví chung theo người</h3></div>
+          <b style={{fontSize:22}}>{fmtVND(sharedTotal)}</b>
+          <div className="tiny muted" style={{marginBottom:10}}>Tổng chi tiêu ví chung (Gia đình, Sóc…) tháng {ymLabel(ym)}</div>
+          {personRows.map(p=>{ const pct=sharedTotal?p.amount/sharedTotal*100:0;
+            return (
+              <div key={p.id} style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}>
+                  <span>{p.emoji} {p.name}</span><b>{fmtVND(p.amount)} · {Math.round(pct)}%</b>
+                </div>
+                <div className="bar"><i style={{width:pct+"%",background:p.color}}></i></div>
+              </div>);
+          })}
         </div>}
       {cuttable.length>0 &&
         <div className="card">
