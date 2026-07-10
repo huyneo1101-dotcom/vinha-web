@@ -1443,7 +1443,7 @@ function App(){
     <div className="wrap">
       <div className="topbar">
         <div className="toprow">
-          <div className="brand"><span className="logo">👛</span><div>VíNhà<small>Tài chính gia đình</small></div></div>
+          <div className="brand"><span className="logo" style={{padding:0,overflow:"hidden"}}><img src="icons/icon.svg" alt="VíNhà" style={{width:"100%",height:"100%",display:"block",objectFit:"cover"}}/></span><div>VíNhà<small>Tài chính gia đình</small></div></div>
           {SB && <button className="cloud-pill" style={{marginLeft:"auto"}} onClick={()=>setAuthOpen(true)} title="Đồng bộ đám mây"><IconCloud/>{sbUser?(((sbUser.email||"").split("@")[0])||"Tài khoản"):"Đăng nhập"}</button>}
           {SB && sbUser && <button className="cloud-pill" style={{marginLeft:8,position:"relative"}} onClick={()=>setInboxOpen(true)} title="Giao dịch từ ngân hàng"><IconTrayDown/>{inbox.length?inbox.length:""}</button>}
           <button className="theme-tg" aria-label="Sáng/Tối" style={{marginLeft:SB?8:"auto"}} onClick={()=>setTheme(t=>({...t,dark:!t.dark}))}>{theme.dark?<IconSun size={17}/>:<IconMoon size={17}/>}</button>
