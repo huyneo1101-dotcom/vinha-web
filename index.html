@@ -1360,6 +1360,10 @@ function App(){
   const visBills=useMemo(()=> hiddenWalletIds.size? bills.filter(b=>!hiddenWalletIds.has(b.walletId)) : bills,[bills,hiddenWalletIds]);
   const visSubs=useMemo(()=> hiddenWalletIds.size? subs.filter(s=>!hiddenWalletIds.has(s.walletId)) : subs,[subs,hiddenWalletIds]);
   const visBudgets=useMemo(()=> hiddenMemberIds.size? budgets.filter(b=>!hiddenMemberIds.has(b.scope)) : budgets,[budgets,hiddenMemberIds]);
+  // tra cứu thành viên không lọc ẩn — dùng để hiện tên "người chi" trên giao dịch ví chung, kể cả khi thành viên đó đang bị ẩn với tài khoản đang xem
+  const mByIdAll=useMemo(()=>{const m={};members.forEach(x=>m[x.id]=x);return m;},[members]);
+  const memberByIdAny=id=>mByIdAll[id];
+  const myMemberId=useMemo(()=>{ if(!myEmail) return ""; const m=members.find(x=>inferOwner(x)===myEmail); return m?m.id:""; },[members,myEmail]);
   const visGoals=useMemo(()=> hiddenMemberIds.size? goals.filter(g=>!hiddenMemberIds.has(g.scope)) : goals,[goals,hiddenMemberIds]);
   useEffect(()=>{ if(hiddenMemberIds.has(focus)){ const gd=visMembers.find(m=>m.id==="m_gd"); setFocus(gd?gd.id:((visMembers[0]||{}).id||"all")); } },[hiddenMemberIds,visMembers]);
 
@@ -1403,7 +1407,7 @@ function App(){
 
   const db={members:visMembers,setMembers,wallets:visWallets,setWallets,cats,txs:visTxs,budgets:visBudgets,setBudgets,goals:visGoals,setGoals,bills:visBills,setBills,debts:visDebts,setDebts,subs:visSubs,setSubs,
     ym,setYm,focus,setFocus,memberById,walletById,catById,memberOfWallet,balanceOf,memberBalance,familyTotal,inFocus,budgetSpent,
-    addTx,saveTx,delTx,openTx:setTxEdit,setTab,theme,setTheme,txSeg,setTxSeg};
+    addTx,saveTx,delTx,openTx:setTxEdit,setTab,theme,setTheme,txSeg,setTxSeg,memberByIdAny,myMemberId};
 
   return (
     <div className="wrap">
@@ -2003,15 +2007,17 @@ function Analytics({db}){
 
 /* hàng giao dịch dùng chung */
 function TxRow({t,db,onClick}){
-  const {catById,walletById,memberOfWallet}=db;
+  const {catById,walletById,memberOfWallet,memberByIdAny}=db;
   const w=walletById(t.walletId); const mem=memberOfWallet(t.walletId);
+  const byMem = t.by? memberByIdAny(t.by) : null;
+  const whoTag = byMem&&(!mem||byMem.id!==mem.id) ? (" · "+byMem.emoji+" "+byMem.name) : (mem?(" · "+mem.name):"");
   if(t.type==="transfer"){
     const w2=walletById(t.toWalletId);
     return (
       <div className="row" onClick={onClick}>
         <span className="av" style={{background:"var(--info-l)"}}>🔄</span>
         <div className="grow"><div className="ti">Chuyển tiền</div>
-          <div className="desc">{(w&&w.name)||"?"} → {(w2&&w2.name)||"?"} {t.note?("· "+t.note):""}</div></div>
+          <div className="desc">{(w&&w.name)||"?"} → {(w2&&w2.name)||"?"}{byMem?(" · "+byMem.emoji+" "+byMem.name):""} {t.note?("· "+t.note):""}</div></div>
         <div className="amt tr">{fmtVND(t.amount)}</div>
       </div>
     );
@@ -2022,7 +2028,7 @@ function TxRow({t,db,onClick}){
     <div className="row" onClick={onClick}>
       <span className="av" style={{background:(c.color||"#999")+"22"}}>{catIcon(c.icon||"💸")}</span>
       <div className="grow"><div className="ti">{c.name||"Khác"}{t.photo?<span style={{marginLeft:5,fontSize:12,opacity:.65}} title="Có ảnh hoá đơn">📎</span>:null}</div>
-        <div className="desc">{(w&&(w.icon+" "+w.name))||""}{mem?(" · "+mem.name):""}{t.note?(" · "+t.note):""}</div></div>
+        <div className="desc">{(w&&(w.icon+" "+w.name))||""}{whoTag}{t.note?(" · "+t.note):""}</div></div>
       <div className={"amt "+(isIn?"in":"out")}>{isIn?"+":"−"}{fmtVND(t.amount)}</div>
     </div>
   );
@@ -2262,7 +2268,7 @@ function ReceiptGallery({db,onClose,startId}){
 }
 
 function TxSheet({db,init,onClose}){
-  const {members,wallets,cats,saveTx,delTx,memberOfWallet}=db;
+  const {members,wallets,cats,saveTx,delTx,memberOfWallet,myMemberId}=db;
   const editing=init&&init.id;
   const [type,setType]=useState(init.type||"expense");
   const [amount,setAmount]=useState(init.amount||0);
@@ -2271,6 +2277,7 @@ function TxSheet({db,init,onClose}){
   const [toWalletId,setToWalletId]=useState(init.toWalletId||"");
   const [date,setDate]=useState(init.date||today());
   const [note,setNote]=useState(init.note||"");
+  const [by,setBy]=useState(init.by || myMemberId || "");
   const [photo,setPhoto]=useState(init.photo||"");
   const [photoUrl,setPhotoUrl]=useState(init.photo&&init.photo.indexOf("data:")===0?init.photo:"");
   const [photoBusy,setPhotoBusy]=useState(false);
@@ -2295,7 +2302,7 @@ function TxSheet({db,init,onClose}){
     if(!amount||amount<=0){ alert("Nhập số tiền lớn hơn 0"); return; }
     if(!walletId){ alert("Chọn ví"); return; }
     if(type==="transfer"&&(!toWalletId||toWalletId===walletId)){ alert("Chọn ví nhận khác ví nguồn"); return; }
-    const t={id:editing?init.id:uid(),type,amount,date,note,walletId};
+    const t={id:editing?init.id:uid(),type,amount,date,note,walletId,by:by||owner||""};
     if(type==="transfer") t.toWalletId=toWalletId; else t.categoryId=categoryId;
     if(photo) t.photo=photo;
     saveTx(t); onClose();
@@ -2328,8 +2335,11 @@ function TxSheet({db,init,onClose}){
       <div className="two">
         <div className="field"><label>Ngày</label>
           <input className="input" type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-        <div className="field"><label>Thành viên</label>
-          <input className="input" readOnly value={(memberOfWallet(walletId)||{}).name||"—"} style={{color:"var(--muted)"}}/></div>
+        <div className="field"><label>Người chi</label>
+          <select className="select" value={by} onChange={e=>setBy(e.target.value)}>
+            <option value="">{(memberOfWallet(walletId)||{}).name||"— Không rõ —"}</option>
+            {members.map(m=><option key={m.id} value={m.id}>{m.emoji} {m.name}</option>)}
+          </select></div>
       </div>
 
       <div className="field"><label>Ghi chú</label>
