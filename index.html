@@ -1317,7 +1317,7 @@ function App(){
     return ()=>{ alive=false; clearInterval(iv); document.removeEventListener("visibilitychange",onVis); };
   },[sbUser]);
 
-  const [tab,setTab]=useState("home");
+  const [tab,setTab]=useState("tx");
   const [ym,setYm]=useState(curYM());
   const [focus,setFocus]=useState(()=>{ const gd=members.find(m=>m.id==="m_gd"); return gd?gd.id:((members[0]||{}).id||"m_gd"); }); // memberId — mỗi ví riêng
   const [txEdit,setTxEdit]=useState(null); // null | {} | tx
