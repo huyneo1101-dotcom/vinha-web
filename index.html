@@ -3347,11 +3347,12 @@ function RecurringForm({db,onClose,onSave}){
   const [day,setDay]=useState(5);
   const [walletId,setWalletId]=useState((wallets[0]||{}).id);
   const [categoryId,setCategoryId]=useState("i_salary");
+  const [note,setNote]=useState("");
   const owner=(memberOfWallet(walletId)||{}).id;
   useEffect(()=>{ const ok=cats.some(c=>c.id===categoryId&&c.type===type&&(!owner||!c.owner||c.owner===owner));
     if(!ok){ const f=cats.find(c=>c.type===type&&(!owner||!c.owner||c.owner===owner)); setCategoryId(f?f.id:""); } },[type,walletId]);
   const save=()=>{ if(!(amount>0)){ alert("Nhập số tiền"); return; } if(!walletId){ alert("Chọn ví"); return; }
-    onSave({id:uid(),type,amount,day,walletId,categoryId,note:"",last:""}); onClose(); };
+    onSave({id:uid(),type,amount,day,walletId,categoryId,note,last:""}); onClose(); };
   return (
     <Sheet title="Khoản định kỳ tự động" onClose={onClose}>
       <div className="typeseg" style={{marginBottom:12}}>
@@ -3361,6 +3362,8 @@ function RecurringForm({db,onClose,onSave}){
       <div className="field"><label>Số tiền</label><MoneyInput value={amount} onChange={setAmount} kind={type==="income"?"in":"out"} autoFocus/></div>
       <div className="field"><label>Danh mục</label><CatPicker cats={cats} type={type} value={categoryId} onChange={setCategoryId} owner={owner}/></div>
       <WalletSelect members={members} wallets={wallets} value={walletId} onChange={setWalletId} label={type==="income"?"Vào ví":"Từ ví"}/>
+      <div className="field"><label>Ghi chú</label>
+        <input className="input" value={note} onChange={e=>setNote(e.target.value)} placeholder="VD: Lương tháng, Tiền thuê nhà…"/></div>
       <div className="tiny muted" style={{margin:"8px 0 5px"}}>Tự ghi vào ngày:</div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
         {[1,5,10,15,25].map(d=><button key={d} className="btn ghost sm" style={day===d?{borderColor:"var(--primary)",color:"var(--primary-d)",fontWeight:800}:{}} onClick={()=>setDay(d)}>{d}</button>)}
