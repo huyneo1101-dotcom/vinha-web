@@ -1308,12 +1308,24 @@ function InboxRow({it,db,reload}){
   const [note,setNote]=useState(guess.note);
   const [busy,setBusy]=useState(false);
   const owner=(memberOfWallet(walletId)||{}).id;
-  // ⚠️ cảnh báo trùng — dò giao dịch đã ghi (VD: đã nhập tay/MoneyLover) cùng loại, cùng số tiền, trong vòng 1 ngày
+  // ⚠️ cảnh báo trùng — dò giao dịch đã ghi (VD: đã nhập tay/MoneyLover) cùng loại, trong vòng vài ngày:
+  //    · khớp CHÍNH XÁC số tiền (±1 ngày), hoặc
+  //    · số tiền GẦN GIỐNG (chênh ≤5% hoặc ≤10k, lấy mức lớn hơn) VÀ cùng nhóm chi tiêu (±2 ngày)
   const dupMatches=useMemo(()=>{
     if(!amount) return [];
-    const win=new Set([today(),daysAgo(1)]);
-    return (txs||[]).filter(t=>t.type===type && t.amount===amount && win.has(t.date));
-  },[txs,type,amount]);
+    const winExact=new Set([today(),daysAgo(1)]);
+    const winNear=new Set([today(),daysAgo(1),daysAgo(2)]);
+    const tol=Math.max(10000,amount*0.05);
+    return (txs||[]).filter(t=>{
+        if(t.type!==type) return false;
+        const sameAmount=t.amount===amount;
+        if(sameAmount && winExact.has(t.date)) return true;
+        const nearAmount=Math.abs(t.amount-amount)<=tol;
+        const sameCat=t.categoryId===categoryId;
+        return nearAmount && sameCat && winNear.has(t.date);
+      })
+      .map(t=>({...t,exact:t.amount===amount}));
+  },[txs,type,amount,categoryId]);
   const done=async()=>{ try{ if(SB) await SB.from("vinha_inbox").delete().eq("id",it.id); }catch(e){} reload(); };
   const add=async()=>{ if(!amount||amount<=0){ alert("Số tiền không hợp lệ — sửa lại giúp mình"); return; } if(!walletId){ alert("Chọn ví"); return; }
     setBusy(true); addTx({type,amount,date:today(),walletId,categoryId,note}); await done(); };
@@ -1323,7 +1335,7 @@ function InboxRow({it,db,reload}){
       <div className="tiny muted" style={{whiteSpace:"normal",lineHeight:1.5,marginBottom:9}}>{it.source?("📱 "+it.source+" · "):""}{it.raw}</div>
       {dupMatches.length>0 &&
         <div className="tiny" style={{color:"var(--expense)",background:"var(--expense-l)",borderRadius:8,padding:"8px 10px",marginBottom:9,lineHeight:1.5}}>
-          ⚠️ Có thể trùng với giao dịch đã ghi: {dupMatches.map((t,i)=>(i>0?", ":"")+(t.note||"(không ghi chú)")+" · "+fmtDateVN(t.date))}. Kiểm tra kỹ trước khi "Thêm vào sổ" để tránh tính 2 lần.
+          ⚠️ Có thể trùng với giao dịch đã ghi: {dupMatches.map((t,i)=>(i>0?", ":"")+(t.note||"(không ghi chú)")+" · "+fmtVND(t.amount)+" · "+fmtDateVN(t.date)+(t.exact?"":" (số tiền gần giống, cùng nhóm)"))}. Kiểm tra kỹ trước khi "Thêm vào sổ" để tránh tính 2 lần.
         </div>}
       <div className="typeseg" style={{marginBottom:9}}>
         {[["expense","Chi tiền","out"],["income","Thu tiền","in"]].map(([k,l,cl])=>
