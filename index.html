@@ -732,8 +732,8 @@ const store = (()=>{
 /* Thành viên có gắn m.privateTo = email -> chỉ hiển thị (ví/giao dịch/nợ/hóa đơn/subscriptions liên quan) với đúng tài khoản đó, ẩn hoàn toàn với tài khoản khác trong nhà.
    Nếu không gắn thủ công, tự suy ra từ field "Quan hệ" (Chồng/Vợ) hoặc tên (Huy/Phương Anh) — không cần chỉnh setting. */
 const PRIVATE_ACCOUNTS=[
-  {email:"huyneo1101@gmail.com",label:"Chồng · huyneo1101@gmail.com"},
-  {email:"ngphuonganh181@gmail.com",label:"Vợ · ngphuonganh181@gmail.com"},
+  {email:"huyneo1101@gmail.com",label:"Chồng · huyneo1101@gmail.com",short:"Chồng",emoji:"👨"},
+  {email:"ngphuonganh181@gmail.com",label:"Vợ · ngphuonganh181@gmail.com",short:"Vợ",emoji:"👩"},
 ];
 const RELATION_OWNER={"chồng":"huyneo1101@gmail.com","vợ":"ngphuonganh181@gmail.com"};
 const NAME_OWNER={"huy":"huyneo1101@gmail.com","phương anh":"ngphuonganh181@gmail.com"};
@@ -744,6 +744,23 @@ const inferOwner=m=>{
   const nm=norm(m.name); if(NAME_OWNER[nm]) return NAME_OWNER[nm];
   return "";
 };
+/* Lựa chọn "Người chi" — LUÔN đủ 2 vợ chồng theo PRIVATE_ACCOUNTS.
+   value = id thành viên nếu có (để gộp phân tích chuẩn), nếu chưa có thành viên thì dùng email tài khoản. */
+function spouseOptions(allMembers){
+  return PRIVATE_ACCOUNTS.map(a=>{
+    const m=(allMembers||[]).find(x=>inferOwner(x)===a.email);
+    return { value: m?m.id:a.email, emoji: m?(m.emoji||a.emoji):a.emoji, name: m?m.name:a.short };
+  });
+}
+/* Giải mã "người chi" (by) — có thể là id thành viên hoặc email tài khoản vợ/chồng */
+function spenderInfo(by, memberByIdAny){
+  if(!by) return null;
+  const m=memberByIdAny?memberByIdAny(by):null;
+  if(m) return {id:m.id, name:m.name, emoji:m.emoji||"❔", color:m.color||"#7a8794"};
+  const a=PRIVATE_ACCOUNTS.find(x=>x.email===by);
+  if(a) return {id:by, name:a.short, emoji:a.emoji, color:"#7a8794"};
+  return null;
+}
 const SB_URL="https://ltmlueqkajqmduoqghdf.supabase.co";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0bWx1ZXFrYWpxbWR1b3FnaGRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4NTA2NjcsImV4cCI6MjA5NzQyNjY2N30.rvwZsQiaD8a7fFLwBFk5sgSe6o9t9NqbPfVh1hJvxa0";
 const SB=(typeof supabase!=="undefined"&&supabase.createClient)?supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true}}):null;
@@ -1946,10 +1963,10 @@ function Analytics({db}){
   const sharedWalletIds=new Set(wallets.filter(w=>{ const m=memberOfWallet(w.id); return !(m&&inferOwner(m)); }).map(w=>w.id));
   const sharedExp=monthTx.filter(t=>t.type==="expense"&&sharedWalletIds.has(t.walletId));
   const sharedTotal=sharedExp.reduce((s,t)=>s+t.amount,0);
-  const byPerson={};
-  sharedExp.forEach(t=>{ const bm=t.by?memberByIdAny(t.by):null; const key=bm?bm.id:"unknown"; byPerson[key]=(byPerson[key]||0)+t.amount; });
-  const personRows=Object.keys(byPerson).map(k=>{ const m=k==="unknown"?null:memberByIdAny(k);
-    return {id:k,name:m?m.name:"Chưa rõ người chi",emoji:m?m.emoji:"❔",color:(m&&m.color)||"#7a8794",amount:byPerson[k]}; }).sort((a,b)=>b.amount-a.amount);
+  const byPerson={}, personMeta={};
+  sharedExp.forEach(t=>{ const info=spenderInfo(t.by,memberByIdAny); const key=info?info.id:"unknown"; byPerson[key]=(byPerson[key]||0)+t.amount; if(info) personMeta[key]=info; });
+  const personRows=Object.keys(byPerson).map(k=>{ const info=personMeta[k];
+    return {id:k,name:info?info.name:"Chưa rõ người chi",emoji:info?info.emoji:"❔",color:(info&&info.color)||"#7a8794",amount:byPerson[k]}; }).sort((a,b)=>b.amount-a.amount);
 
   return (
     <div>
@@ -2091,7 +2108,7 @@ function Analytics({db}){
 function TxRow({t,db,onClick}){
   const {catById,walletById,memberOfWallet,memberByIdAny}=db;
   const w=walletById(t.walletId); const mem=memberOfWallet(t.walletId);
-  const byMem = t.by? memberByIdAny(t.by) : null;
+  const byMem = t.by? spenderInfo(t.by,memberByIdAny) : null;
   const whoTag = byMem&&(!mem||byMem.id!==mem.id) ? (" · "+byMem.emoji+" "+byMem.name) : (mem?(" · "+mem.name):"");
   if(t.type==="transfer"){
     const w2=walletById(t.toWalletId);
@@ -2420,7 +2437,7 @@ function TxSheet({db,init,onClose}){
         <div className="field"><label>Người chi</label>
           <select className="select" value={by} onChange={e=>setBy(e.target.value)}>
             <option value="">— Chọn người chi —</option>
-            {(allMembers||members).filter(m=>inferOwner(m)).map(m=><option key={m.id} value={m.id}>{m.emoji} {m.name}</option>)}
+            {spouseOptions(allMembers||members).map(o=><option key={o.value} value={o.value}>{o.emoji} {o.name}</option>)}
           </select></div>
       </div>
 
