@@ -847,7 +847,7 @@ const SYNC = (typeof window!=="undefined" && window.VINHA_SYNC) ? window.VINHA_S
    (vì cloud có thể mang vn.syncVersion CŨ hơn -> phải áp lại dữ liệu ML mới rồi đẩy ngược lên cloud). */
 function applyMoneyLoverSync(){
   if(!(SYNC && SYNC.version && store.get("vn.syncVersion")!==SYNC.version)) return false;
-  const keepTx=store.get("vn.tx",[]).filter(t=> t.type==="transfer" || t.walletId==="w_save" || t.toWalletId==="w_save" || t.photo);
+  const keepTx=store.get("vn.tx",[]).filter(t=> t.type==="transfer" || t.walletId==="w_save" || t.toWalletId==="w_save" || t.photo || t.manual);
   store.set("vn.tx",[...(SYNC.txs||[]),...keepTx]);
   const baseW=store.get("vn.wallets",[]); const sIds=(SYNC.wallets||[]).map(w=>w.id);
   store.set("vn.wallets",[...(SYNC.wallets||[]),...baseW.filter(w=>!sIds.includes(w.id))]);
@@ -1299,7 +1299,7 @@ function PhoneSetup({user,onClose}){
 }
 
 function InboxRow({it,db,reload}){
-  const {members,wallets,cats,addTx,memberOfWallet}=db;
+  const {members,wallets,cats,txs,addTx,memberOfWallet}=db;
   const guess=useMemo(()=>parseBankText(it.raw),[it.id]);
   const [type,setType]=useState(guess.type);
   const [amount,setAmount]=useState(guess.amount);
@@ -1308,6 +1308,12 @@ function InboxRow({it,db,reload}){
   const [note,setNote]=useState(guess.note);
   const [busy,setBusy]=useState(false);
   const owner=(memberOfWallet(walletId)||{}).id;
+  // ⚠️ cảnh báo trùng — dò giao dịch đã ghi (VD: đã nhập tay/MoneyLover) cùng loại, cùng số tiền, trong vòng 1 ngày
+  const dupMatches=useMemo(()=>{
+    if(!amount) return [];
+    const win=new Set([today(),daysAgo(1)]);
+    return (txs||[]).filter(t=>t.type===type && t.amount===amount && win.has(t.date));
+  },[txs,type,amount]);
   const done=async()=>{ try{ if(SB) await SB.from("vinha_inbox").delete().eq("id",it.id); }catch(e){} reload(); };
   const add=async()=>{ if(!amount||amount<=0){ alert("Số tiền không hợp lệ — sửa lại giúp mình"); return; } if(!walletId){ alert("Chọn ví"); return; }
     setBusy(true); addTx({type,amount,date:today(),walletId,categoryId,note}); await done(); };
@@ -1315,6 +1321,10 @@ function InboxRow({it,db,reload}){
   return (
     <div className="card" style={{marginBottom:12}}>
       <div className="tiny muted" style={{whiteSpace:"normal",lineHeight:1.5,marginBottom:9}}>{it.source?("📱 "+it.source+" · "):""}{it.raw}</div>
+      {dupMatches.length>0 &&
+        <div className="tiny" style={{color:"var(--expense)",background:"var(--expense-l)",borderRadius:8,padding:"8px 10px",marginBottom:9,lineHeight:1.5}}>
+          ⚠️ Có thể trùng với giao dịch đã ghi: {dupMatches.map((t,i)=>(i>0?", ":"")+(t.note||"(không ghi chú)")+" · "+fmtDateVN(t.date))}. Kiểm tra kỹ trước khi "Thêm vào sổ" để tránh tính 2 lần.
+        </div>}
       <div className="typeseg" style={{marginBottom:9}}>
         {[["expense","Chi tiền","out"],["income","Thu tiền","in"]].map(([k,l,cl])=>
           <button key={k} className={type===k?("on "+cl):""} onClick={()=>{setType(k); setCategoryId(k==="income"?"i_other":"c_other");}}>{l}</button>)}
@@ -1466,7 +1476,7 @@ function App(){
   },[budgetNotifOn,visBudgets,visTxs]);
 
   // actions
-  const addTx=t=> setTxs(p=>[Object.assign({id:uid()},t),...p]);
+  const addTx=t=> setTxs(p=>[Object.assign({id:uid(),manual:true},t),...p]);
   const saveTx=t=> setTxs(p=> p.some(x=>x.id===t.id)? p.map(x=>x.id===t.id?t:x) : [t,...p]);
   const delTx=id=> setTxs(p=>p.filter(x=>x.id!==id));
 
@@ -2401,7 +2411,7 @@ function TxSheet({db,init,onClose}){
     if(!amount||amount<=0){ alert("Nhập số tiền lớn hơn 0"); return; }
     if(!walletId){ alert("Chọn ví"); return; }
     if(type==="transfer"&&(!toWalletId||toWalletId===walletId)){ alert("Chọn ví nhận khác ví nguồn"); return; }
-    const t={id:editing?init.id:uid(),type,amount,date,note,walletId,by:by||(owner&&owner!=="m_gd"?owner:"")};
+    const t={id:editing?init.id:uid(),type,amount,date,note,walletId,by:by||(owner&&owner!=="m_gd"?owner:""),manual:true};
     if(type==="transfer") t.toWalletId=toWalletId; else t.categoryId=categoryId;
     if(photo) t.photo=photo;
     saveTx(t); onClose();
