@@ -1265,7 +1265,7 @@ function PhoneSetup({user,onClose}){
     setBusy(false);
   };
   const url=SB_URL+"/rest/v1/vinha_inbox";
-  const body='{"token":"'+(token||"<MÃ_CỦA_BẠN>")+'","raw":"{txt}","source":"{app}"}';
+  const body='{"token":"'+(token||"<MÃ_CỦA_BẠN>")+'","raw":"{notification}","source":"{not_app_name}"}';
   const copy=(txt,tag)=>{ try{ navigator.clipboard.writeText(txt); setCopied(tag); setTimeout(()=>setCopied(""),1200);}catch(e){} };
   const box={background:"var(--bg2)",border:"1px solid var(--line-2)",borderRadius:10,padding:"9px 11px",fontSize:12,wordBreak:"break-all",fontFamily:"monospace",marginBottom:6,lineHeight:1.5};
   const cbtn=t=>({marginBottom:12,fontSize:12,padding:"5px 10px",borderRadius:8,border:"1px solid var(--line-2)",background:copied===t?"var(--pri)":"var(--card)",color:copied===t?"#fff":"var(--ink)",cursor:"pointer"});
@@ -1287,10 +1287,10 @@ function PhoneSetup({user,onClose}){
               <div className="field"><label>Headers (thêm 4 dòng)</label>
                 <div style={box}>apikey: {SB_KEY.slice(0,18)}…<br/>Authorization: Bearer {SB_KEY.slice(0,12)}…<br/>Content-Type: application/json<br/>Prefer: return=minimal</div>
                 <button style={cbtn("hd")} onClick={()=>copy("apikey: "+SB_KEY+"\nAuthorization: Bearer "+SB_KEY+"\nContent-Type: application/json\nPrefer: return=minimal","hd")}>{copied==="hd"?"✓ Đã chép":"📋 Chép Headers"}</button></div>
-              <div className="field"><label>Body (JSON) — thay {"{txt}"} bằng biến “nội dung thông báo”, {"{app}"} bằng tên app</label>
+              <div className="field"><label>Body (JSON) — dán y nguyên vào MacroDroid, không cần sửa gì (đã đúng biến {"{notification}"}/{"{not_app_name}"} của MacroDroid)</label>
                 <div style={box}>{body}</div>
                 <button style={cbtn("bd")} onClick={()=>copy(body,"bd")}>{copied==="bd"?"✓ Đã chép":"📋 Chép Body"}</button></div>
-              <div className="note">Trên iPhone không đọc được thông báo app khác — chỉ lách được qua Shortcuts đọc <b>SMS</b> ngân hàng.</div>
+              <div className="note">Dùng <b>Tasker</b> thay vì MacroDroid? Cú pháp biến khác — tự thay {"{notification}"} bằng biến "nội dung thông báo", {"{not_app_name}"} bằng biến "tên app" của Tasker. Trên iPhone không đọc được thông báo app khác — chỉ lách được qua Shortcuts đọc <b>SMS</b> ngân hàng.</div>
             </div>}
             {err && <div className="tiny" style={{color:"var(--danger)",marginTop:8}}>{err}</div>}
           </div>}
