@@ -4,7 +4,7 @@ App tĩnh: `index.html` (~3989 dòng, ~280KB, app React 18 + Babel Standalone qu
 
 ## Quy tắc làm việc với file này
 - **KHÔNG đọc cả `index.html` (~280KB)** — grep định vị rồi Read cửa sổ nhỏ (xem skill `bigfile-nav`).
-- ⚠️ **Thiếu `sw.js`**: `index.html` gọi `serviceWorker.register('sw.js')` nhưng repo CHƯA có file này → service worker không đăng ký được, app KHÔNG offline được và không cache. Cần tạo `sw.js` (xem skill `pwa-healthcheck` / `scaffold-vibe-pwa`).
+- `sw.js` đã có (CACHE `vinha-v1`): network-first cho trang chính, cache-first cho asset/CDN, không cache Supabase. Sửa nội dung đáng kể → **bump `CACHE`** để client nhận bản mới (xem `pwa-healthcheck`).
 - Babel transpile trong trình duyệt: lỗi cú pháp = trắng màn hình câm. Kiểm tra Console sau khi sửa.
 - Có 2 file HTML: đổi giao diện/logic app sửa `index.html`; đổi trang giới thiệu sửa `landing.html`.
 
