@@ -1431,17 +1431,19 @@ function App(){
     if(!hiddenMemberIds.size) return new Set();
     return new Set(wallets.filter(w=>hiddenMemberIds.has(w.memberId)).map(w=>w.id));
   },[wallets,hiddenMemberIds]);
-  const visWallets=useMemo(()=> hiddenWalletIds.size? wallets.filter(w=>!hiddenWalletIds.has(w.id)) : wallets,[wallets,hiddenWalletIds]);
-  const visTxs=useMemo(()=> hiddenWalletIds.size? txs.filter(t=>!hiddenWalletIds.has(t.walletId)&&!hiddenWalletIds.has(t.toWalletId)) : txs,[txs,hiddenWalletIds]);
-  const visDebts=useMemo(()=> hiddenMemberIds.size? debts.filter(d=>!hiddenMemberIds.has(d.memberId)) : debts,[debts,hiddenMemberIds]);
-  const visBills=useMemo(()=> hiddenWalletIds.size? bills.filter(b=>!hiddenWalletIds.has(b.walletId)) : bills,[bills,hiddenWalletIds]);
-  const visSubs=useMemo(()=> hiddenWalletIds.size? subs.filter(s=>!hiddenWalletIds.has(s.walletId)) : subs,[subs,hiddenWalletIds]);
-  const visBudgets=useMemo(()=> hiddenMemberIds.size? budgets.filter(b=>!hiddenMemberIds.has(b.scope)) : budgets,[budgets,hiddenMemberIds]);
+  // lọc bỏ phần tử có key trùng 1 trong các set ẩn — dùng chung cho mọi mảng cần ẩn theo ví/thành viên riêng tư
+  const visible=(arr,hidden,...keyFns)=> hidden.size? arr.filter(x=>!keyFns.some(f=>hidden.has(f(x)))) : arr;
+  const visWallets=useMemo(()=>visible(wallets,hiddenWalletIds,w=>w.id),[wallets,hiddenWalletIds]);
+  const visTxs=useMemo(()=>visible(txs,hiddenWalletIds,t=>t.walletId,t=>t.toWalletId),[txs,hiddenWalletIds]);
+  const visDebts=useMemo(()=>visible(debts,hiddenMemberIds,d=>d.memberId),[debts,hiddenMemberIds]);
+  const visBills=useMemo(()=>visible(bills,hiddenWalletIds,b=>b.walletId),[bills,hiddenWalletIds]);
+  const visSubs=useMemo(()=>visible(subs,hiddenWalletIds,s=>s.walletId),[subs,hiddenWalletIds]);
+  const visBudgets=useMemo(()=>visible(budgets,hiddenMemberIds,b=>b.scope),[budgets,hiddenMemberIds]);
   // tra cứu thành viên không lọc ẩn — dùng để hiện tên "người chi" trên giao dịch ví chung, kể cả khi thành viên đó đang bị ẩn với tài khoản đang xem
   const mByIdAll=useMemo(()=>{const m={};members.forEach(x=>m[x.id]=x);return m;},[members]);
   const memberByIdAny=id=>mByIdAll[id];
   const myMemberId=useMemo(()=>{ if(!myEmail) return ""; const m=members.find(x=>inferOwner(x)===myEmail); return m?m.id:""; },[members,myEmail]);
-  const visGoals=useMemo(()=> hiddenMemberIds.size? goals.filter(g=>!hiddenMemberIds.has(g.scope)) : goals,[goals,hiddenMemberIds]);
+  const visGoals=useMemo(()=>visible(goals,hiddenMemberIds,g=>g.scope),[goals,hiddenMemberIds]);
   useEffect(()=>{ if(hiddenMemberIds.has(focus)){ const gd=visMembers.find(m=>m.id==="m_gd"); setFocus(gd?gd.id:((visMembers[0]||{}).id||"all")); } },[hiddenMemberIds,visMembers]);
 
   // helpers — memo hoá bản đồ tra cứu & số dư (tránh .find()/quét tx lặp lại mỗi render)
@@ -1452,6 +1454,8 @@ function App(){
   const walletById=id=>wById[id];
   const catById=id=>cById[id];
   const memberOfWallet=wid=>{ const w=wById[wid]; return w?mById[w.memberId]:null; };
+  // ví riêng của vợ/chồng (trong số các ví đang hiển thị với tài khoản này) — dùng chung cho net worth & phân tích ví chung
+  const privateWalletIds=useMemo(()=> new Set(visWallets.filter(w=>{ const m=mById[w.memberId]; return !!(m&&inferOwner(m)); }).map(w=>w.id)), [visWallets,mById]);
 
   const balMap=useMemo(()=>{
     const m={}; visWallets.forEach(w=>m[w.id]=w.opening||0);
@@ -1503,7 +1507,7 @@ function App(){
 
   const db={members:visMembers,setMembers,wallets:visWallets,setWallets,cats,txs:visTxs,budgets:visBudgets,setBudgets,goals:visGoals,setGoals,bills:visBills,setBills,debts:visDebts,setDebts,subs:visSubs,setSubs,
     ym,setYm,focus,setFocus,memberById,walletById,catById,memberOfWallet,balanceOf,memberBalance,familyTotal,inFocus,budgetSpent,
-    addTx,saveTx,delTx,openTx:setTxEdit,setTab,theme,setTheme,txSeg,setTxSeg,memberByIdAny,myMemberId,budgetNotifOn,setBudgetNotifOn,allMembers:members};
+    addTx,saveTx,delTx,openTx:setTxEdit,setTab,theme,setTheme,txSeg,setTxSeg,memberByIdAny,myMemberId,budgetNotifOn,setBudgetNotifOn,allMembers:members,privateWalletIds};
 
   return (
     <div className="wrap">
@@ -1625,7 +1629,7 @@ function SectionList({tab,items,layout,setLayout,edit}){
   return sorted.map((it,i)=><SectionBox key={it.id} id={it.id} title={SECT_TITLE[it.id]||it.id} layout={layout} setLayout={setLayout} edit={edit} first={i===0} last={i===sorted.length-1} onMove={move}>{it.node}</SectionBox>);
 }
 function Home({db}){
-  const {ym,focus,members,wallets,txs,cats,budgets,bills,debts,goals,setGoals,balanceOf,memberBalance,familyTotal,memberById,walletById,catById,memberOfWallet,openTx}=db;
+  const {ym,focus,members,wallets,txs,cats,budgets,bills,debts,goals,setGoals,balanceOf,memberBalance,familyTotal,memberById,walletById,catById,openTx}=db;
   const [hide,setHide]=useState(false);
   const [goalTopup,setGoalTopup]=useState(null);
   const [qi,setQi]=useState(()=>Math.floor(Math.random()*QUOTES.length));
@@ -1681,8 +1685,7 @@ function Home({db}){
   const holds=store.get("vn.holdings",[]);
   const holdingsVal=holds.reduce((s,h)=>s+h.qty*h.now,0);
   const borrowTot=debts.filter(d=>d.kind==="borrow").reduce((s,d)=>s+(d.remaining||0),0);
-  const isPersonalWallet=w=>{ const m=memberOfWallet(w.id); return !!(m&&inferOwner(m)); };
-  const liquidNow=wallets.filter(w=>w.id!=="w_save"&&w.id!=="w_invest"&&!isPersonalWallet(w)).reduce((s,w)=>s+balanceOf(w.id),0);
+  const liquidNow=wallets.filter(w=>w.id!=="w_save"&&w.id!=="w_invest"&&!db.privateWalletIds.has(w.id)).reduce((s,w)=>s+balanceOf(w.id),0);
   const saveNow=balanceOf("w_save"), investNow=balanceOf("w_invest");
   const netWorth=liquidNow+saveNow+investNow+holdingsVal-borrowTot;
   const nwSeries=last8YM().map(m=>({ym:m, v:liquidNow+walletBalUpto(txs,"w_save",m)+walletBalUpto(txs,"w_invest",m)+holdingsVal-borrowTot}));
@@ -1937,13 +1940,14 @@ function ShoppingSaver(){
   );
 }
 function Analytics({db}){
-  const {ym,focus,txs,budgets,catById,wallets,memberOfWallet,memberByIdAny}=db;
+  const {ym,focus,txs,budgets,catById,memberByIdAny}=db;
   const inFocus=t=>db.inFocus(t,focus);
   const monthTx=txs.filter(t=>ymOf(t.date)===ym && inFocus(t));
-  const expense=monthTx.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);
+  const expenseTx=monthTx.filter(t=>t.type==="expense");
+  const expense=expenseTx.reduce((s,t)=>s+t.amount,0);
 
   const byCat={};
-  monthTx.filter(t=>t.type==="expense").forEach(t=>{ byCat[t.categoryId]=(byCat[t.categoryId]||0)+t.amount; });
+  expenseTx.forEach(t=>{ byCat[t.categoryId]=(byCat[t.categoryId]||0)+t.amount; });
   let donutData=Object.keys(byCat).map(cid=>{ const c=catById(cid)||{}; return {label:c.name||"Khác",value:byCat[cid],color:c.color||"#7a8794"}; }).sort((a,b)=>b.value-a.value);
   let legend=donutData.slice(0,5);
   if(donutData.length>5){ const rest=donutData.slice(5).reduce((s,d)=>s+d.value,0); legend=legend.concat([{label:"Khác",value:rest,color:"#c2cdc8"}]); }
@@ -1982,13 +1986,13 @@ function Analytics({db}){
     for(let i=0;i<24;i++){ const sp=budgets.reduce((s,b)=>s+db.budgetSpent(b,mm),0); if(sp<=0||sp>bTotal) break; n++; mm=addMonths(mm,-1); } return n; })();
 
   // 👫 chi tiêu ví CHUNG (Gia đình, Sóc…) tháng này, tách theo người thực sự chi (field "Người chi")
-  const sharedWalletIds=new Set(wallets.filter(w=>{ const m=memberOfWallet(w.id); return !(m&&inferOwner(m)); }).map(w=>w.id));
-  const sharedExp=monthTx.filter(t=>t.type==="expense"&&sharedWalletIds.has(t.walletId));
+  const sharedExp=expenseTx.filter(t=>!db.privateWalletIds.has(t.walletId));
   const sharedTotal=sharedExp.reduce((s,t)=>s+t.amount,0);
-  const byPerson={}, personMeta={};
-  sharedExp.forEach(t=>{ const info=spenderInfo(t.by,memberByIdAny); const key=info?info.id:"unknown"; byPerson[key]=(byPerson[key]||0)+t.amount; if(info) personMeta[key]=info; });
-  const personRows=Object.keys(byPerson).map(k=>{ const info=personMeta[k];
-    return {id:k,name:info?info.name:"Chưa rõ người chi",emoji:info?info.emoji:"❔",color:(info&&info.color)||"#7a8794",amount:byPerson[k]}; }).sort((a,b)=>b.amount-a.amount);
+  const agg={};
+  sharedExp.forEach(t=>{ const info=spenderInfo(t.by,memberByIdAny); const key=info?info.id:"unknown";
+    if(!agg[key]) agg[key]={info,amount:0}; agg[key].amount+=t.amount; });
+  const personRows=Object.keys(agg).map(k=>{ const {info,amount}=agg[k];
+    return {id:k,name:info?info.name:"Chưa rõ người chi",emoji:info?info.emoji:"❔",color:(info&&info.color)||"#7a8794",amount}; }).sort((a,b)=>b.amount-a.amount);
 
   return (
     <div>
@@ -2399,6 +2403,7 @@ function TxSheet({db,init,onClose}){
   const [date,setDate]=useState(init.date||today());
   const [note,setNote]=useState(init.note||"");
   const [by,setBy]=useState(init.by || myMemberId || "");
+  const spouseOpts=useMemo(()=>spouseOptions(allMembers||members),[allMembers,members]);
   const [photo,setPhoto]=useState(init.photo||"");
   const [photoUrl,setPhotoUrl]=useState(init.photo&&init.photo.indexOf("data:")===0?init.photo:"");
   const [photoBusy,setPhotoBusy]=useState(false);
@@ -2459,7 +2464,7 @@ function TxSheet({db,init,onClose}){
         <div className="field"><label>Người chi</label>
           <select className="select" value={by} onChange={e=>setBy(e.target.value)}>
             <option value="">— Chọn người chi —</option>
-            {spouseOptions(allMembers||members).map(o=><option key={o.value} value={o.value}>{o.emoji} {o.name}</option>)}
+            {spouseOpts.map(o=><option key={o.value} value={o.value}>{o.emoji} {o.name}</option>)}
           </select></div>
       </div>
 
@@ -3104,7 +3109,7 @@ function AutoAllocateSheet({db,onClose}){
   const {budgets,setBudgets,txs,ym,catById}=db;
   const FIXED=/điện|nước|thuê|trọ|nhà ở|internet|wifi|học phí|học|giáo dục|trường|thuốc|khám|bệnh|y tế|sức khỏe|bảo hiểm|sữa|bỉm|tã|vay|trả nợ|hoá đơn|hóa đơn/i;
   const [target,setTarget]=useState(11000000);
-  const lastYM=addMonths(ym,-1);
+  const lastYM=useMemo(()=>addMonths(ym,-1),[ym]);
 
   const plan=useMemo(()=>{
     const spendLast={};
