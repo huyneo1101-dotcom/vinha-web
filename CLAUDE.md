@@ -4,7 +4,7 @@ App tĩnh: `index.html` (~3989 dòng, ~280KB, app React 18 + Babel Standalone qu
 
 ## Quy tắc làm việc với file này
 - **KHÔNG đọc cả `index.html` (~280KB)** — grep định vị rồi Read cửa sổ nhỏ (xem skill `bigfile-nav`).
-- `sw.js` đã có (CACHE `vinha-v1`): network-first cho trang chính, cache-first cho asset/CDN, không cache Supabase. Sửa nội dung đáng kể → **bump `CACHE`** để client nhận bản mới (xem `pwa-healthcheck`).
+- `sw.js` đã có (CACHE `vinha-v2`): network-first cho trang chính, cache-first cho asset/CDN, không cache Supabase, cộng `push`/`notificationclick` (Web Push VAPID). Sửa nội dung đáng kể → **bump `CACHE`** để client nhận bản mới (xem `pwa-healthcheck`).
 - Babel transpile trong trình duyệt: lỗi cú pháp = trắng màn hình câm. Kiểm tra Console sau khi sửa.
 - Có 2 file HTML: đổi giao diện/logic app sửa `index.html`; đổi trang giới thiệu sửa `landing.html`.
 
@@ -26,7 +26,7 @@ Truy cập qua helper `store.get(k,default)` / `store.set(k,v)` (không dùng `l
 
 - Khoá phụ: `vn.dataVersion`, `vn.syncVersion`, `vn.budgetNotifOn`, và các cờ migration `vn.migr_*`.
 - Migration: làm theo pattern `vn.migr_*` sẵn có (khối quanh dòng ~808–860). Xem skill `local-store` khi đổi cấu trúc.
-- Đồng bộ Supabase: **CÓ**. Object `CLOUD` (dòng ~767) gom mọi khoá `vn.*` (`gather`) rồi upsert vào bảng `vinha_household` (chế độ chia sẻ gia đình) hoặc `vinha_state` (cá nhân); ảnh hoá đơn lưu ở Storage bucket `vinha-receipts`.
+- Đồng bộ Supabase: **CÓ**. Object `CLOUD` (dòng ~767) gom mọi khoá `vn.*` (`gather`) rồi upsert vào bảng `vinha_household` (chế độ chia sẻ gia đình) hoặc `vinha_state` (cá nhân); ảnh hoá đơn lưu ở Storage bucket `vinha-receipts`. Ngoài ra có Realtime (`postgres_changes` trên 2 bảng trên, tự reload khi thiết bị khác đồng bộ) và Web Push (bảng `vinha_push_subs`/`vinha_alert_state`, Edge Function `supabase/functions/check-budget-alerts` — schema + hướng dẫn deploy ở `supabase/schema.sql`/`supabase/README.md`).
 
 ## Bản đồ component chính
 - `App` — dòng ~1370; 5 tab (bottom nav, dòng ~1549): `tx` Giao dịch · `home` Tổng quan · `analytics` Phân tích · `plan` Kế hoạch · `family` Gia đình.
